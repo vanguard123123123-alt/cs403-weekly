@@ -8,3 +8,7 @@ spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
+
+# Generate your own secret, e.g.: openssl rand -base64 48
+jwt.secret=change_this_to_a_long_random_secret
+jwt.expiration-ms=86400000
