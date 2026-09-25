@@ -1,14 +1,22 @@
 import { useState } from "react";
+import axios from "axios";
 
 function Register() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
-    const handleRegister = () => {
-        console.log("ชื่อ:", name);
-        console.log("อีเมล:", email);
-        console.log("รหัสผ่าน:", password);
+    const handleRegister = async () => {
+        try {
+            const response = await axios.post("http://localhost:8080/api/auth/register", {
+                name: name,
+                email: email,
+                password: password,
+            });
+            console.log("สมัครสมาชิกสำเร็จ:", response.data);
+        }catch (error){
+            console.log("สมัครสมาชิกไม่สำเร็จ:", error);
+        }
     };
 
     return (

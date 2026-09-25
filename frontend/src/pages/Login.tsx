@@ -1,12 +1,20 @@
 import { useState } from "react";
+import axios from "axios";
 
 function Login(){
     const [email , setEmail] = useState("");
     const [password , setPassword] = useState("");
 
-    const handleLogin = () => {
-        console.log("อีเมลที่กรอก:", email);
-        console.log("รหัสผ่านที่กรอก:", password);
+    const handleLogin = async () => {
+        try {
+            const response = await axios.post("http://localhost:8080/api/auth/login", {
+                email: email,
+                password: password,
+            });
+            console.log("Login สำเร็จ:", response.data);
+        } catch (error) {
+            console.log("Login ไม่สำเร็จ:", error);
+        }
     };
     return(
         <div>
