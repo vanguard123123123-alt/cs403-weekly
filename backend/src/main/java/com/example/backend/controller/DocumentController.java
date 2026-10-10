@@ -5,6 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,22 +13,30 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.backend.dto.DocumentResponse;
+import com.example.backend.dto.SummaryResponse;
 import com.example.backend.entity.User;
 import com.example.backend.exception.InvalidCredentialsException;
 import com.example.backend.repository.DocumentRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.DocumentService;
+import com.example.backend.service.SummaryService;
 
 @RestController
 @RequestMapping("/api/documents")
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final SummaryService summaryService;
     private final UserRepository userRepository;
     private final DocumentRepository documentRepository;
 
-    public DocumentController(DocumentService documentService, UserRepository userRepository, DocumentRepository documentRepository) {
+    public DocumentController(
+            DocumentService documentService,
+            SummaryService summaryService,
+            UserRepository userRepository,
+            DocumentRepository documentRepository) {
         this.documentService = documentService;
+        this.summaryService = summaryService;
         this.userRepository = userRepository;
         this.documentRepository = documentRepository;
     }
@@ -55,5 +64,14 @@ public class DocumentController {
                 .toList();
 
         return ResponseEntity.ok(documents);
+    }
+
+    @PostMapping("/{id}/summarize")
+    public ResponseEntity<SummaryResponse> summarize(@PathVariable Integer id, Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(InvalidCredentialsException::new);
+
+        SummaryResponse response = summaryService.summarizeDocument(id, user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
