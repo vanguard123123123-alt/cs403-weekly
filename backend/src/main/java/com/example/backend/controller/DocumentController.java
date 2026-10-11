@@ -74,4 +74,11 @@ public class DocumentController {
         SummaryResponse response = summaryService.summarizeDocument(id, user);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+    @GetMapping("/{id}/summaries")
+public ResponseEntity<List<SummaryResponse>> getSummaries(@PathVariable Integer id, Authentication authentication) {
+    User user = userRepository.findByEmail(authentication.getName())
+            .orElseThrow(InvalidCredentialsException::new);
+
+    return ResponseEntity.ok(summaryService.getSummariesByDocument(id, user));
+}
 }

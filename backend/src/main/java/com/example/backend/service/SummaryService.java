@@ -2,6 +2,7 @@ package com.example.backend.service;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 
@@ -62,4 +63,17 @@ public class SummaryService {
 
         return SummaryResponse.fromEntity(summaryRepository.save(summary));
     }
+       public List<SummaryResponse> getSummariesByDocument(Integer documentId, User currentUser) {
+       Document document = documentRepository.findById(documentId)
+               .orElseThrow(() -> new DocumentNotFoundException(documentId));
+
+       if (!document.getUser().getUserId().equals(currentUser.getUserId())) {
+           throw new ForbiddenException("You do not have access to this document");
+       }
+
+       return summaryRepository.findByDocument(document)
+               .stream()
+               .map(SummaryResponse::fromEntity)
+               .toList();
+   }
 }
