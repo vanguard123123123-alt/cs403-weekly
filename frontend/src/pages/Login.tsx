@@ -1,17 +1,20 @@
 import { useState } from "react";
-import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import api from "../api/axiosClient";
 
 function Login(){
+    const navigate = useNavigate();
     const [email , setEmail] = useState("");
     const [password , setPassword] = useState("");
 
     const handleLogin = async () => {
         try {
-            const response = await axios.post("http://localhost:8080/api/auth/login", {
+            const response = await api.post("/api/auth/login", {
                 email: email,
                 password: password,
             });
-            console.log("Login สำเร็จ:", response.data);
+            localStorage.setItem("token", response.data.token);
+            navigate("/documents");
         } catch (error) {
             console.log("Login ไม่สำเร็จ:", error);
         }
