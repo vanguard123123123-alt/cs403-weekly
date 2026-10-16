@@ -43,12 +43,13 @@ function Documents() {
 
     const handleUpload = async () => {
         if (!selectedFile) {
-            setErrorMessage("กรุณาเลือกไฟล์ PDF ก่อนอัปโหลด");
+            setErrorMessage("กรุณาเลือกไฟล์ PDF หรือ TXT ก่อนอัปโหลด");
             return;
         }
 
-        if (!selectedFile.name.toLowerCase().endsWith(".pdf")) {
-            setErrorMessage("รองรับเฉพาะไฟล์ PDF เท่านั้น");
+        const lowerName = selectedFile.name.toLowerCase();
+        if (!lowerName.endsWith(".pdf") && !lowerName.endsWith(".txt")) {
+            setErrorMessage("รองรับเฉพาะไฟล์ PDF และ TXT เท่านั้น");
             return;
         }
 
@@ -103,7 +104,7 @@ function Documents() {
                 <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,.txt"
                     onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
                 />
                 <input

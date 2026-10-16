@@ -20,21 +20,19 @@ import com.example.backend.repository.SummaryRepository;
 @Service
 public class SummaryService {
 
-    private static final String PDF_FILE_TYPE = "pdf";
-
     private final DocumentRepository documentRepository;
     private final SummaryRepository summaryRepository;
-    private final PdfTextExtractionService pdfTextExtractionService;
+    private final List<TextExtractor> textExtractors;
     private final OpenAiService openAiService;
 
     public SummaryService(
             DocumentRepository documentRepository,
             SummaryRepository summaryRepository,
-            PdfTextExtractionService pdfTextExtractionService,
+            List<TextExtractor> textExtractors,
             OpenAiService openAiService) {
         this.documentRepository = documentRepository;
         this.summaryRepository = summaryRepository;
-        this.pdfTextExtractionService = pdfTextExtractionService;
+        this.textExtractors = textExtractors;
         this.openAiService = openAiService;
     }
 
@@ -46,12 +44,8 @@ public class SummaryService {
             throw new ForbiddenException("You do not have access to this document");
         }
 
-        if (!PDF_FILE_TYPE.equalsIgnoreCase(document.getFileType())) {
-            throw new InvalidFileTypeException(
-                    "Summarizing images is not supported yet; only PDF files are supported");
-        }
-
-        String text = pdfTextExtractionService.extractText(Path.of(document.getFilePath()));
+        TextExtractor extractor = resolveExtractor(document.getFileType());
+        String text = extractor.extractText(Path.of(document.getFilePath()));
 
         if (text == null || text.isBlank()) {
             throw new EmptyDocumentException("No extractable text was found in this document");
@@ -63,17 +57,26 @@ public class SummaryService {
 
         return SummaryResponse.fromEntity(summaryRepository.save(summary));
     }
-       public List<SummaryResponse> getSummariesByDocument(Integer documentId, User currentUser) {
-       Document document = documentRepository.findById(documentId)
-               .orElseThrow(() -> new DocumentNotFoundException(documentId));
 
-       if (!document.getUser().getUserId().equals(currentUser.getUserId())) {
-           throw new ForbiddenException("You do not have access to this document");
-       }
+    public List<SummaryResponse> getSummariesByDocument(Integer documentId, User currentUser) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new DocumentNotFoundException(documentId));
 
-       return summaryRepository.findByDocument(document)
-               .stream()
-               .map(SummaryResponse::fromEntity)
-               .toList();
-   }
+        if (!document.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new ForbiddenException("You do not have access to this document");
+        }
+
+        return summaryRepository.findByDocument(document)
+                .stream()
+                .map(SummaryResponse::fromEntity)
+                .toList();
+    }
+
+    private TextExtractor resolveExtractor(String fileType) {
+        return textExtractors.stream()
+                .filter(extractor -> extractor.supports(fileType))
+                .findFirst()
+                .orElseThrow(() -> new InvalidFileTypeException(
+                        "Summarizing ." + fileType + " files is not supported yet"));
+    }
 }

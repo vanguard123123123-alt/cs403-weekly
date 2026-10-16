@@ -26,12 +26,13 @@ public class DocumentService {
 
     private static final Map<String, String> ALLOWED_TYPES = Map.of(
             "application/pdf", "pdf",
+            "text/plain", "txt",
             "image/jpeg", "jpg",
             "image/png", "png",
             "image/gif", "gif",
             "image/webp", "webp");
 
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png", "gif", "webp");
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "txt", "jpg", "jpeg", "png", "gif", "webp");
 
     private final DocumentRepository documentRepository;
     private final Path uploadDir;
@@ -56,7 +57,7 @@ public class DocumentService {
         String contentType = file.getContentType();
 
         if (!ALLOWED_EXTENSIONS.contains(extension) || !ALLOWED_TYPES.containsKey(contentType)) {
-            throw new InvalidFileTypeException("Only PDF and image files (jpg, png, gif, webp) are allowed");
+            throw new InvalidFileTypeException("Only PDF, TXT and image files (jpg, png, gif, webp) are allowed");
         }
 
         String storedFileName = UUID.randomUUID() + "." + extension;
