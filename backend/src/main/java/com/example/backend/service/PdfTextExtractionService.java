@@ -6,12 +6,16 @@ import java.nio.file.Path;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.example.backend.exception.TextExtractionException;
 
 @Service
 public class PdfTextExtractionService implements TextExtractor {
+
+    private static final Logger log = LoggerFactory.getLogger(PdfTextExtractionService.class);
 
     @Override
     public boolean supports(String fileType) {
@@ -24,7 +28,11 @@ public class PdfTextExtractionService implements TextExtractor {
             PDFTextStripper stripper = new PDFTextStripper();
             return stripper.getText(document);
         } catch (IOException ex) {
-            throw new TextExtractionException("Failed to extract text from PDF: " + pdfPath, ex);
+            log.error("Failed to extract text from PDF: {}", pdfPath, ex);
+            throw new TextExtractionException(
+                    "Failed to extract text from PDF: " + pdfPath
+                            + " (cause: " + ex.getClass().getSimpleName() + ": " + ex.getMessage() + ")",
+                    ex);
         }
     }
 }

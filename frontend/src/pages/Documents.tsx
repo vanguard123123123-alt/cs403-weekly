@@ -9,6 +9,36 @@ interface DocumentItem {
     uploadDate: string;
 }
 
+interface SummaryItem {
+    summaryId: number;
+    documentId: number;
+}
+
+function getSummarizeErrorMessage(error: unknown): string {
+    if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const serverMessage: string | undefined = error.response?.data?.message;
+
+        if (status === 404) {
+            return "ไม่พบเอกสารนี้";
+        }
+        if (status === 403) {
+            return "คุณไม่มีสิทธิ์เข้าถึงเอกสารนี้";
+        }
+        if (status === 400) {
+            if (serverMessage?.toLowerCase().includes("no extractable text")) {
+                return "ไม่พบข้อความในเอกสารนี้ (อาจเป็นไฟล์สแกนที่ไม่มีข้อความ)";
+            }
+            if (serverMessage?.toLowerCase().includes("not supported")) {
+                return "ไฟล์ประเภทนี้ยังไม่รองรับการสรุป";
+            }
+            return serverMessage ?? "คำขอไม่ถูกต้อง";
+        }
+        return "เกิดข้อผิดพลาดระหว่างสรุปเอกสาร กรุณาลองใหม่อีกครั้ง";
+    }
+    return "เกิดข้อผิดพลาดระหว่างสรุปเอกสาร กรุณาลองใหม่อีกครั้ง";
+}
+
 function Documents() {
     const navigate = useNavigate();
     const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -20,16 +50,37 @@ function Documents() {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [summaryExists, setSummaryExists] = useState<Record<number, boolean>>({});
+    const [summarizingId, setSummarizingId] = useState<number | null>(null);
+    const [summarizeErrors, setSummarizeErrors] = useState<Record<number, string>>({});
+
+    const loadSummaryStatus = useCallback(async (docs: DocumentItem[]) => {
+        const results = await Promise.all(
+            docs.map(async (doc) => {
+                try {
+                    const response = await api.get<SummaryItem[]>(
+                        `/api/documents/${doc.documentId}/summaries`
+                    );
+                    return [doc.documentId, response.data.length > 0] as const;
+                } catch {
+                    return [doc.documentId, false] as const;
+                }
+            })
+        );
+        setSummaryExists(Object.fromEntries(results));
+    }, []);
+
     const fetchDocuments = useCallback(async () => {
         try {
             const response = await api.get<DocumentItem[]>("/api/documents");
             setDocuments(response.data);
+            await loadSummaryStatus(response.data);
         } catch (error) {
             console.log("โหลดรายการเอกสารไม่สำเร็จ:", error);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [loadSummaryStatus]);
 
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -92,6 +143,24 @@ function Documents() {
         }
     };
 
+    const handleSummarize = async (documentId: number) => {
+        setSummarizingId(documentId);
+        setSummarizeErrors((prev) => ({ ...prev, [documentId]: "" }));
+
+        try {
+            await api.post(`/api/documents/${documentId}/summarize`);
+            setSummaryExists((prev) => ({ ...prev, [documentId]: true }));
+            navigate(`/documents/${documentId}`);
+        } catch (error) {
+            setSummarizeErrors((prev) => ({
+                ...prev,
+                [documentId]: getSummarizeErrorMessage(error),
+            }));
+        } finally {
+            setSummarizingId(null);
+        }
+    };
+
     if (loading) {
         return <p>กำลังโหลด...</p>;
     }
@@ -126,7 +195,22 @@ function Documents() {
                 <ul>
                     {documents.map((doc) => (
                         <li key={doc.documentId}>
-                            {doc.title} — {new Date(doc.uploadDate).toLocaleString("th-TH")}
+                            {doc.title} — {new Date(doc.uploadDate).toLocaleString("th-TH")}{" "}
+                            {summaryExists[doc.documentId] ? (
+                                <button onClick={() => navigate(`/documents/${doc.documentId}`)}>
+                                    ดูสรุป
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => handleSummarize(doc.documentId)}
+                                    disabled={summarizingId === doc.documentId}
+                                >
+                                    {summarizingId === doc.documentId ? "กำลังสรุป..." : "สรุป"}
+                                </button>
+                            )}
+                            {summarizeErrors[doc.documentId] && (
+                                <p style={{ color: "red" }}>{summarizeErrors[doc.documentId]}</p>
+                            )}
                         </li>
                     ))}
                 </ul>
