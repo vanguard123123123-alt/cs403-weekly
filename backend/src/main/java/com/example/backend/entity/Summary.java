@@ -34,14 +34,23 @@ public class Summary {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "truncated", nullable = false)
+    private boolean truncated;
+
     public Summary() {
     }
 
-    public Summary(Document document, String summaryLabel, String contentSum, LocalDateTime createdAt) {
+    public Summary(
+            Document document,
+            String summaryLabel,
+            String contentSum,
+            LocalDateTime createdAt,
+            boolean truncated) {
         this.document = document;
         this.summaryLabel = summaryLabel;
         this.contentSum = contentSum;
         this.createdAt = createdAt;
+        this.truncated = truncated;
     }
 
     public Integer getSummaryId() {
@@ -82,5 +91,13 @@ public class Summary {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public boolean isTruncated() {
+        return truncated;
+    }
+
+    public void setTruncated(boolean truncated) {
+        this.truncated = truncated;
     }
 }

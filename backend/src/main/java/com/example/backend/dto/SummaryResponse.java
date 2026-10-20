@@ -11,18 +11,21 @@ public class SummaryResponse {
     private String summaryLabel;
     private String contentSum;
     private LocalDateTime createdAt;
+    private boolean truncated;
 
     public SummaryResponse(
             Integer summaryId,
             Integer documentId,
             String summaryLabel,
             String contentSum,
-            LocalDateTime createdAt) {
+            LocalDateTime createdAt,
+            boolean truncated) {
         this.summaryId = summaryId;
         this.documentId = documentId;
         this.summaryLabel = summaryLabel;
         this.contentSum = contentSum;
         this.createdAt = createdAt;
+        this.truncated = truncated;
     }
 
     public static SummaryResponse fromEntity(Summary summary) {
@@ -31,7 +34,8 @@ public class SummaryResponse {
                 summary.getDocument().getDocumentId(),
                 summary.getSummaryLabel(),
                 summary.getContentSum(),
-                summary.getCreatedAt());
+                summary.getCreatedAt(),
+                summary.isTruncated());
     }
 
     public Integer getSummaryId() {
@@ -52,5 +56,9 @@ public class SummaryResponse {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public boolean isTruncated() {
+        return truncated;
     }
 }
