@@ -12,14 +12,18 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.backend.dto.DocumentResponse;
 import com.example.backend.entity.Document;
 import com.example.backend.entity.User;
+import com.example.backend.exception.DocumentNotFoundException;
 import com.example.backend.exception.FileStorageException;
+import com.example.backend.exception.ForbiddenException;
 import com.example.backend.exception.InvalidFileTypeException;
 import com.example.backend.repository.DocumentRepository;
+import com.example.backend.repository.SummaryRepository;
 
 @Service
 public class DocumentService {
@@ -35,10 +39,15 @@ public class DocumentService {
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "txt", "jpg", "jpeg", "png", "gif", "webp");
 
     private final DocumentRepository documentRepository;
+    private final SummaryRepository summaryRepository;
     private final Path uploadDir;
 
-    public DocumentService(DocumentRepository documentRepository, @Value("${file.upload-dir}") String uploadDir) {
+    public DocumentService(
+            DocumentRepository documentRepository,
+            SummaryRepository summaryRepository,
+            @Value("${file.upload-dir}") String uploadDir) {
         this.documentRepository = documentRepository;
+        this.summaryRepository = summaryRepository;
         this.uploadDir = Path.of(uploadDir).toAbsolutePath().normalize();
 
         try {
@@ -81,6 +90,25 @@ public class DocumentService {
                 LocalDateTime.now());
 
         return DocumentResponse.fromEntity(documentRepository.save(document));
+    }
+
+    @Transactional
+    public void deleteDocument(Integer documentId, User currentUser) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new DocumentNotFoundException(documentId));
+
+        if (!document.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new ForbiddenException("You do not have access to this document");
+        }
+
+        summaryRepository.deleteAll(summaryRepository.findByDocument(document));
+        documentRepository.delete(document);
+
+        try {
+            Files.deleteIfExists(Path.of(document.getFilePath()));
+        } catch (IOException ex) {
+            throw new FileStorageException("Failed to delete file: " + document.getFilePath(), ex);
+        }
     }
 
     private String extractExtension(String originalFilename) {

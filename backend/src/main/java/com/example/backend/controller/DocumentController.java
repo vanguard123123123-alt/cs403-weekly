@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -81,4 +82,13 @@ public ResponseEntity<List<SummaryResponse>> getSummaries(@PathVariable Integer 
 
     return ResponseEntity.ok(summaryService.getSummariesByDocument(id, user));
 }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Integer id, Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(InvalidCredentialsException::new);
+
+        documentService.deleteDocument(id, user);
+        return ResponseEntity.noContent().build();
+    }
 }

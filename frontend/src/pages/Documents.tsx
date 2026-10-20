@@ -29,6 +29,9 @@ function Documents() {
     const [summarizingId, setSummarizingId] = useState<number | null>(null);
     const [summarizeErrors, setSummarizeErrors] = useState<Record<number, string>>({});
 
+    const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [deleteErrors, setDeleteErrors] = useState<Record<number, string>>({});
+
     const loadSummaryStatus = useCallback(async (docs: DocumentItem[]) => {
         const results = await Promise.all(
             docs.map(async (doc) => {
@@ -123,6 +126,28 @@ function Documents() {
         }
     };
 
+    const handleDelete = async (documentId: number, title: string) => {
+        const confirmed = window.confirm(`ต้องการลบเอกสาร "${title}" ใช่หรือไม่?`);
+        if (!confirmed) {
+            return;
+        }
+
+        setDeletingId(documentId);
+        setDeleteErrors((prev) => ({ ...prev, [documentId]: "" }));
+
+        try {
+            await api.delete(`/api/documents/${documentId}`);
+            await fetchDocuments();
+        } catch (error) {
+            setDeleteErrors((prev) => ({
+                ...prev,
+                [documentId]: getErrorMessage(error, "ลบเอกสารไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"),
+            }));
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem("token");
         navigate("/login");
@@ -176,8 +201,18 @@ function Documents() {
                                     {summarizingId === doc.documentId ? "กำลังสรุป..." : "สรุป"}
                                 </button>
                             )}
+                            {" "}
+                            <button
+                                onClick={() => handleDelete(doc.documentId, doc.title)}
+                                disabled={deletingId === doc.documentId}
+                            >
+                                {deletingId === doc.documentId ? "กำลังลบ..." : "ลบ"}
+                            </button>
                             {summarizeErrors[doc.documentId] && (
                                 <p style={{ color: "red" }}>{summarizeErrors[doc.documentId]}</p>
+                            )}
+                            {deleteErrors[doc.documentId] && (
+                                <p style={{ color: "red" }}>{deleteErrors[doc.documentId]}</p>
                             )}
                         </li>
                     ))}
