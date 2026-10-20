@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../api/axiosClient";
+import { getErrorMessage } from "../api/errorMessage";
 
 interface DocumentItem {
     documentId: number;
@@ -63,7 +64,7 @@ function DocumentDetail() {
                     setSummary(latest);
                 } catch (summaryError) {
                     console.log("โหลดสรุปไม่สำเร็จ:", summaryError);
-                    setSummaryMessage("โหลดสรุปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                    setSummaryMessage(getErrorMessage(summaryError, "โหลดสรุปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
                 }
             } catch (error) {
                 console.log("โหลดข้อมูลเอกสารไม่สำเร็จ:", error);
@@ -81,19 +82,28 @@ function DocumentDetail() {
     }
 
     if (notFound || !documentInfo) {
-        return <p>ไม่พบเอกสารนี้</p>;
+        return (
+            <div>
+                <button onClick={() => navigate("/documents")}>กลับไปรายการเอกสาร</button>
+                <p>ไม่พบเอกสารนี้</p>
+            </div>
+        );
     }
 
     return (
-        <div style={{ display: "flex", gap: "2rem" }}>
-            <div style={{ flex: 1 }}>
-                <h2>ข้อมูลเอกสาร</h2>
-                <p>ชื่อเอกสาร: {documentInfo.title}</p>
-                <p>ชนิดไฟล์: {documentInfo.fileType}</p>
-            </div>
-            <div style={{ flex: 2 }}>
-                <h2>สรุปเอกสาร</h2>
-                {summary ? <p>{summary.contentSum}</p> : <p>{summaryMessage}</p>}
+        <div>
+            <button onClick={() => navigate("/documents")}>กลับไปรายการเอกสาร</button>
+
+            <div style={{ display: "flex", gap: "2rem" }}>
+                <div style={{ flex: 1 }}>
+                    <h2>ข้อมูลเอกสาร</h2>
+                    <p>ชื่อเอกสาร: {documentInfo.title}</p>
+                    <p>ชนิดไฟล์: {documentInfo.fileType}</p>
+                </div>
+                <div style={{ flex: 2 }}>
+                    <h2>สรุปเอกสาร</h2>
+                    {summary ? <p>{summary.contentSum}</p> : <p>{summaryMessage}</p>}
+                </div>
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import api from "../api/axiosClient";
+import { getErrorMessage } from "../api/errorMessage";
 
 interface DocumentItem {
     documentId: number;
@@ -12,31 +12,6 @@ interface DocumentItem {
 interface SummaryItem {
     summaryId: number;
     documentId: number;
-}
-
-function getSummarizeErrorMessage(error: unknown): string {
-    if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        const serverMessage: string | undefined = error.response?.data?.message;
-
-        if (status === 404) {
-            return "ไม่พบเอกสารนี้";
-        }
-        if (status === 403) {
-            return "คุณไม่มีสิทธิ์เข้าถึงเอกสารนี้";
-        }
-        if (status === 400) {
-            if (serverMessage?.toLowerCase().includes("no extractable text")) {
-                return "ไม่พบข้อความในเอกสารนี้ (อาจเป็นไฟล์สแกนที่ไม่มีข้อความ)";
-            }
-            if (serverMessage?.toLowerCase().includes("not supported")) {
-                return "ไฟล์ประเภทนี้ยังไม่รองรับการสรุป";
-            }
-            return serverMessage ?? "คำขอไม่ถูกต้อง";
-        }
-        return "เกิดข้อผิดพลาดระหว่างสรุปเอกสาร กรุณาลองใหม่อีกครั้ง";
-    }
-    return "เกิดข้อผิดพลาดระหว่างสรุปเอกสาร กรุณาลองใหม่อีกครั้ง";
 }
 
 function Documents() {
@@ -124,20 +99,7 @@ function Documents() {
 
             await fetchDocuments();
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                const status = error.response?.status;
-                const serverMessage = error.response?.data?.message;
-
-                if (status === 413) {
-                    setErrorMessage("ไฟล์มีขนาดใหญ่เกิน 10MB");
-                } else if (status === 400) {
-                    setErrorMessage("ไฟล์ไม่ถูกต้อง: " + (serverMessage ?? "กรุณาตรวจสอบไฟล์ที่เลือก"));
-                } else {
-                    setErrorMessage(serverMessage ?? "อัปโหลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-                }
-            } else {
-                setErrorMessage("อัปโหลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-            }
+            setErrorMessage(getErrorMessage(error, "อัปโหลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
         } finally {
             setUploading(false);
         }
@@ -154,11 +116,16 @@ function Documents() {
         } catch (error) {
             setSummarizeErrors((prev) => ({
                 ...prev,
-                [documentId]: getSummarizeErrorMessage(error),
+                [documentId]: getErrorMessage(error, "เกิดข้อผิดพลาดระหว่างสรุปเอกสาร กรุณาลองใหม่อีกครั้ง"),
             }));
         } finally {
             setSummarizingId(null);
         }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem("token");
+        navigate("/login");
     };
 
     if (loading) {
@@ -167,6 +134,7 @@ function Documents() {
 
     return (
         <div>
+            <button onClick={handleLogout}>ออกจากระบบ</button>
             <h1>เอกสารของฉัน</h1>
 
             <div>
