@@ -1,6 +1,5 @@
 package com.example.backend.service;
 
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -31,6 +30,7 @@ public class SummaryService {
     private final SummaryRepository summaryRepository;
     private final List<TextExtractor> textExtractors;
     private final OpenAiService openAiService;
+    private final UploadPathResolver uploadPathResolver;
     private final int dailySummaryLimit;
     private final int maxInputChars;
 
@@ -39,12 +39,14 @@ public class SummaryService {
             SummaryRepository summaryRepository,
             List<TextExtractor> textExtractors,
             OpenAiService openAiService,
+            UploadPathResolver uploadPathResolver,
             @Value("${summary.daily-limit}") int dailySummaryLimit,
             @Value("${summary.max-input-chars}") int maxInputChars) {
         this.documentRepository = documentRepository;
         this.summaryRepository = summaryRepository;
         this.textExtractors = textExtractors;
         this.openAiService = openAiService;
+        this.uploadPathResolver = uploadPathResolver;
         this.dailySummaryLimit = dailySummaryLimit;
         this.maxInputChars = maxInputChars;
     }
@@ -60,7 +62,7 @@ public class SummaryService {
         enforceDailyLimit(currentUser);
 
         TextExtractor extractor = resolveExtractor(document.getFileType());
-        String text = extractor.extractText(Path.of(document.getFilePath()));
+        String text = extractor.extractText(uploadPathResolver.resolve(document.getFilePath()));
 
         if (text == null || text.isBlank()) {
             throw new EmptyDocumentException("No extractable text was found in this document");

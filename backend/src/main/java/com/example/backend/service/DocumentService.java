@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,21 +39,15 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final SummaryRepository summaryRepository;
-    private final Path uploadDir;
+    private final UploadPathResolver uploadPathResolver;
 
     public DocumentService(
             DocumentRepository documentRepository,
             SummaryRepository summaryRepository,
-            @Value("${file.upload-dir}") String uploadDir) {
+            UploadPathResolver uploadPathResolver) {
         this.documentRepository = documentRepository;
         this.summaryRepository = summaryRepository;
-        this.uploadDir = Path.of(uploadDir).toAbsolutePath().normalize();
-
-        try {
-            Files.createDirectories(this.uploadDir);
-        } catch (IOException ex) {
-            throw new FileStorageException("Could not create upload directory", ex);
-        }
+        this.uploadPathResolver = uploadPathResolver;
     }
 
     public DocumentResponse upload(MultipartFile file, String title, User user) {
@@ -70,7 +63,7 @@ public class DocumentService {
         }
 
         String storedFileName = UUID.randomUUID() + "." + extension;
-        Path targetPath = uploadDir.resolve(storedFileName);
+        Path targetPath = uploadPathResolver.getUploadDir().resolve(storedFileName);
 
         try {
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
@@ -85,7 +78,7 @@ public class DocumentService {
         Document document = new Document(
                 user,
                 resolvedTitle,
-                "uploads/" + storedFileName,
+                storedFileName,
                 extension,
                 LocalDateTime.now());
 
@@ -105,7 +98,7 @@ public class DocumentService {
         documentRepository.delete(document);
 
         try {
-            Files.deleteIfExists(Path.of(document.getFilePath()));
+            Files.deleteIfExists(uploadPathResolver.resolve(document.getFilePath()));
         } catch (IOException ex) {
             throw new FileStorageException("Failed to delete file: " + document.getFilePath(), ex);
         }
