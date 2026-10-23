@@ -160,6 +160,7 @@ function Documents() {
     return (
         <div>
             <button onClick={handleLogout}>ออกจากระบบ</button>
+            <button onClick={() => navigate("/dashboard")}>ไปหน้า Dashboard</button>
             <h1>เอกสารของฉัน</h1>
 
             <div>

@@ -1,9 +1,7 @@
 package com.example.backend.service;
 
 import java.nio.file.Path;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -22,12 +20,12 @@ import com.example.backend.exception.ForbiddenException;
 import com.example.backend.exception.InvalidFileTypeException;
 import com.example.backend.repository.DocumentRepository;
 import com.example.backend.repository.SummaryRepository;
+import com.example.backend.util.BangkokTime;
 
 @Service
 public class SummaryService {
 
     private static final Logger log = LoggerFactory.getLogger(SummaryService.class);
-    private static final ZoneId BANGKOK = ZoneId.of("Asia/Bangkok");
 
     private final DocumentRepository documentRepository;
     private final SummaryRepository summaryRepository;
@@ -99,11 +97,8 @@ public class SummaryService {
     }
 
     private void enforceDailyLimit(User currentUser) {
-        // createdAt is stored via LocalDateTime.now(), so this comparison is only correct
-        // if the server's default JVM time zone is also Asia/Bangkok.
-        LocalDateTime startOfTodayInBangkok = LocalDate.now(BANGKOK).atStartOfDay();
         long countToday = summaryRepository.countByDocument_UserAndCreatedAtGreaterThanEqual(
-                currentUser, startOfTodayInBangkok);
+                currentUser, BangkokTime.startOfToday());
 
         if (countToday >= dailySummaryLimit) {
             throw new DailySummaryLimitExceededException(dailySummaryLimit);

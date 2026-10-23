@@ -8,4 +8,6 @@ import com.example.backend.entity.User;
 
 public interface DocumentRepository extends JpaRepository<Document, Integer> {
     List<Document> findByUser(User user);
+
+    long countByUser(User user);
 }
