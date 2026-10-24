@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
 import { getErrorMessage } from "../api/errorMessage";
+import { stripMarkdown } from "../utils/stripMarkdown";
 
 interface RecentSummaryItem {
     summaryId: number;
@@ -95,7 +96,7 @@ function Dashboard() {
                                 >
                                     <strong>{summary.summaryLabel}</strong> —{" "}
                                     {new Date(summary.createdAt).toLocaleString("th-TH")}
-                                    <p>{summary.contentSum}</p>
+                                    <p>{stripMarkdown(summary.contentSum)}</p>
                                 </li>
                             ))}
                         </ul>

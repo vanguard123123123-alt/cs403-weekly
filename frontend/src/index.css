@@ -109,3 +109,39 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.markdown-summary {
+  text-align: left;
+}
+
+.markdown-summary h1,
+.markdown-summary h2,
+.markdown-summary h3 {
+  margin: 20px 0 8px;
+}
+
+.markdown-summary h1:first-child,
+.markdown-summary h2:first-child,
+.markdown-summary h3:first-child {
+  margin-top: 0;
+}
+
+.markdown-summary p {
+  margin: 0 0 12px;
+  line-height: 150%;
+}
+
+.markdown-summary ul,
+.markdown-summary ol {
+  margin: 0 0 12px;
+  padding-left: 24px;
+}
+
+.markdown-summary li {
+  margin-bottom: 6px;
+  line-height: 145%;
+}
+
+.markdown-summary strong {
+  color: var(--text-h);
+}

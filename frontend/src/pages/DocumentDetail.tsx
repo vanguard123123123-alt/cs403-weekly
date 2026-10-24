@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
 import api from "../api/axiosClient";
 import { getErrorMessage } from "../api/errorMessage";
 
@@ -102,7 +103,13 @@ function DocumentDetail() {
                 </div>
                 <div style={{ flex: 2 }}>
                     <h2>สรุปเอกสาร</h2>
-                    {summary ? <p>{summary.contentSum}</p> : <p>{summaryMessage}</p>}
+                    {summary ? (
+                        <div className="markdown-summary">
+                            <ReactMarkdown>{summary.contentSum}</ReactMarkdown>
+                        </div>
+                    ) : (
+                        <p>{summaryMessage}</p>
+                    )}
                 </div>
             </div>
         </div>
