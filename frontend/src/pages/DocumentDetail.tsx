@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import api from "../api/axiosClient";
 import { getErrorMessage } from "../api/errorMessage";
 
@@ -143,7 +146,14 @@ function DocumentDetail() {
                                 ))}
                             </ul>
                             <div className="markdown-summary" style={{ flex: 1 }}>
-                                {selectedSummary && <ReactMarkdown>{selectedSummary.contentSum}</ReactMarkdown>}
+                                {selectedSummary && (
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkMath]}
+                                        rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
+                                    >
+                                        {selectedSummary.contentSum}
+                                    </ReactMarkdown>
+                                )}
                             </div>
                         </div>
                     )}
