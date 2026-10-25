@@ -5,11 +5,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,6 +30,9 @@ import com.example.backend.repository.SummaryRepository;
 @Service
 public class DocumentService {
 
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
+    private static final String PDF_FILE_TYPE = "pdf";
+
     private static final Map<String, String> ALLOWED_TYPES = Map.of(
             "application/pdf", "pdf",
             "text/plain", "txt",
@@ -40,14 +46,17 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final SummaryRepository summaryRepository;
     private final UploadPathResolver uploadPathResolver;
+    private final PdfTextExtractionService pdfTextExtractionService;
 
     public DocumentService(
             DocumentRepository documentRepository,
             SummaryRepository summaryRepository,
-            UploadPathResolver uploadPathResolver) {
+            UploadPathResolver uploadPathResolver,
+            PdfTextExtractionService pdfTextExtractionService) {
         this.documentRepository = documentRepository;
         this.summaryRepository = summaryRepository;
         this.uploadPathResolver = uploadPathResolver;
+        this.pdfTextExtractionService = pdfTextExtractionService;
     }
 
     public DocumentResponse upload(MultipartFile file, String title, User user) {
@@ -82,7 +91,49 @@ public class DocumentService {
                 extension,
                 LocalDateTime.now());
 
+        if (PDF_FILE_TYPE.equals(extension)) {
+            try {
+                document.setPageCount(pdfTextExtractionService.countPages(targetPath));
+            } catch (RuntimeException ex) {
+                log.warn("Rejecting upload: could not read PDF {}: {}", targetPath, ex.getMessage());
+
+                try {
+                    Files.deleteIfExists(targetPath);
+                } catch (IOException deleteEx) {
+                    log.warn("Failed to remove rejected PDF {}: {}", targetPath, deleteEx.getMessage());
+                }
+
+                throw new InvalidFileTypeException(
+                        "Could not read this PDF. It may be corrupted or password-protected.");
+            }
+        }
+
         return DocumentResponse.fromEntity(documentRepository.save(document));
+    }
+
+    public List<DocumentResponse> listForUser(User user) {
+        return documentRepository.findByUser(user)
+                .stream()
+                .map(this::ensurePageCount)
+                .map(DocumentResponse::fromEntity)
+                .toList();
+    }
+
+    public Document ensurePageCount(Document document) {
+        if (document.getPageCount() != null || !PDF_FILE_TYPE.equalsIgnoreCase(document.getFileType())) {
+            return document;
+        }
+
+        try {
+            int pageCount = pdfTextExtractionService.countPages(uploadPathResolver.resolve(document.getFilePath()));
+            document.setPageCount(pageCount);
+            return documentRepository.save(document);
+        } catch (RuntimeException ex) {
+            log.warn(
+                    "Could not count pages for document {} ({}): {}",
+                    document.getDocumentId(), document.getFilePath(), ex.getMessage());
+            return document;
+        }
     }
 
     @Transactional

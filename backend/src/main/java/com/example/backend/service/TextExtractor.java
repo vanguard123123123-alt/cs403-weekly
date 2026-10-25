@@ -6,5 +6,5 @@ public interface TextExtractor {
 
     boolean supports(String fileType);
 
-    String extractText(Path path);
+    String extractText(Path path, Integer startPage, Integer endPage);
 }

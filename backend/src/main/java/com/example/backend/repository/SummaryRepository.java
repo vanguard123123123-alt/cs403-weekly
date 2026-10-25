@@ -17,7 +17,13 @@ public interface SummaryRepository extends JpaRepository<Summary, Integer> {
 
     List<Summary> findByDocument(Document document);
 
-    long countByDocument_UserAndCreatedAtGreaterThanEqual(User user, LocalDateTime since);
+    // Excludes vision-mode summaries so the general (text) daily limit and the
+    // vision-specific daily limit are fully independent quotas, as intended.
+    @Query("SELECT COUNT(s) FROM Summary s WHERE s.document.user = :user AND s.createdAt >= :since "
+            + "AND (s.mode IS NULL OR s.mode <> 'vision')")
+    long countByDocument_UserAndCreatedAtGreaterThanEqual(@Param("user") User user, @Param("since") LocalDateTime since);
+
+    long countByDocument_UserAndModeAndCreatedAtGreaterThanEqual(User user, String mode, LocalDateTime since);
 
     long countByDocument_User(User user);
 

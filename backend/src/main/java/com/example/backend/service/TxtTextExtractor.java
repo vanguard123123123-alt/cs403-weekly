@@ -18,7 +18,7 @@ public class TxtTextExtractor implements TextExtractor {
     }
 
     @Override
-    public String extractText(Path path) {
+    public String extractText(Path path, Integer startPage, Integer endPage) {
         try {
             return Files.readString(path, StandardCharsets.UTF_8);
         } catch (IOException ex) {

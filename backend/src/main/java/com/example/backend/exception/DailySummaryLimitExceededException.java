@@ -6,4 +6,9 @@ public class DailySummaryLimitExceededException extends RuntimeException {
         super("Daily summary limit reached (" + dailyLimit
                 + " per day). Please try again after midnight (Asia/Bangkok time).");
     }
+
+    public DailySummaryLimitExceededException(int dailyLimit, String scope) {
+        super("Daily " + scope + " summary limit reached (" + dailyLimit
+                + " per day). Please try again after midnight (Asia/Bangkok time).");
+    }
 }

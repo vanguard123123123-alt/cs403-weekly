@@ -37,6 +37,15 @@ public class Summary {
     @Column(name = "truncated", nullable = false)
     private boolean truncated;
 
+    @Column(name = "start_page")
+    private Integer startPage;
+
+    @Column(name = "end_page")
+    private Integer endPage;
+
+    @Column(name = "mode", length = 10)
+    private String mode;
+
     public Summary() {
     }
 
@@ -45,12 +54,18 @@ public class Summary {
             String summaryLabel,
             String contentSum,
             LocalDateTime createdAt,
-            boolean truncated) {
+            boolean truncated,
+            Integer startPage,
+            Integer endPage,
+            String mode) {
         this.document = document;
         this.summaryLabel = summaryLabel;
         this.contentSum = contentSum;
         this.createdAt = createdAt;
         this.truncated = truncated;
+        this.startPage = startPage;
+        this.endPage = endPage;
+        this.mode = mode;
     }
 
     public Integer getSummaryId() {
@@ -99,5 +114,29 @@ public class Summary {
 
     public void setTruncated(boolean truncated) {
         this.truncated = truncated;
+    }
+
+    public Integer getStartPage() {
+        return startPage;
+    }
+
+    public void setStartPage(Integer startPage) {
+        this.startPage = startPage;
+    }
+
+    public Integer getEndPage() {
+        return endPage;
+    }
+
+    public void setEndPage(Integer endPage) {
+        this.endPage = endPage;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
     }
 }

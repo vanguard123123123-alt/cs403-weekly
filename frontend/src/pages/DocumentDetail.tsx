@@ -17,13 +17,24 @@ interface SummaryItem {
     summaryLabel: string;
     contentSum: string;
     createdAt: string;
+    startPage: number | null;
+    endPage: number | null;
+    mode: string | null;
+}
+
+function pageRangeLabel(summary: SummaryItem): string {
+    if (summary.startPage == null || summary.endPage == null) {
+        return "ทั้งไฟล์";
+    }
+    return `หน้า ${summary.startPage}-${summary.endPage}`;
 }
 
 function DocumentDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [documentInfo, setDocumentInfo] = useState<DocumentItem | null>(null);
-    const [summary, setSummary] = useState<SummaryItem | null>(null);
+    const [summaries, setSummaries] = useState<SummaryItem[]>([]);
+    const [selectedSummaryId, setSelectedSummaryId] = useState<number | null>(null);
     const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
     const [notFound, setNotFound] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -52,17 +63,17 @@ function DocumentDetail() {
                     const summariesResponse = await api.get<SummaryItem[]>(
                         `/api/documents/${documentId}/summaries`
                     );
-                    const summaries = summariesResponse.data;
+                    const sorted = [...summariesResponse.data].sort(
+                        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    );
 
-                    if (summaries.length === 0) {
+                    if (sorted.length === 0) {
                         setSummaryMessage("เอกสารนี้ยังไม่มีสรุป");
                         return;
                     }
 
-                    const latest = [...summaries].sort(
-                        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                    )[0];
-                    setSummary(latest);
+                    setSummaries(sorted);
+                    setSelectedSummaryId(sorted[0].summaryId);
                 } catch (summaryError) {
                     console.log("โหลดสรุปไม่สำเร็จ:", summaryError);
                     setSummaryMessage(getErrorMessage(summaryError, "โหลดสรุปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
@@ -91,6 +102,8 @@ function DocumentDetail() {
         );
     }
 
+    const selectedSummary = summaries.find((s) => s.summaryId === selectedSummaryId) ?? null;
+
     return (
         <div>
             <button onClick={() => navigate("/documents")}>กลับไปรายการเอกสาร</button>
@@ -103,12 +116,36 @@ function DocumentDetail() {
                 </div>
                 <div style={{ flex: 2 }}>
                     <h2>สรุปเอกสาร</h2>
-                    {summary ? (
-                        <div className="markdown-summary">
-                            <ReactMarkdown>{summary.contentSum}</ReactMarkdown>
-                        </div>
-                    ) : (
+                    {summaries.length === 0 ? (
                         <p>{summaryMessage}</p>
+                    ) : (
+                        <div style={{ display: "flex", gap: "1.5rem" }}>
+                            <ul style={{ listStyle: "none", padding: 0, margin: 0, minWidth: "160px" }}>
+                                {summaries.map((s) => (
+                                    <li key={s.summaryId} style={{ marginBottom: "8px" }}>
+                                        <button
+                                            onClick={() => setSelectedSummaryId(s.summaryId)}
+                                            style={{
+                                                fontWeight: s.summaryId === selectedSummaryId ? "bold" : "normal",
+                                            }}
+                                        >
+                                            {pageRangeLabel(s)}
+                                            {s.mode === "vision" && (
+                                                <>
+                                                    {" "}
+                                                    <span style={{ color: "darkorange" }}>[อ่านแบบภาพ]</span>
+                                                </>
+                                            )}
+                                            <br />
+                                            {new Date(s.createdAt).toLocaleString("th-TH")}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                            <div className="markdown-summary" style={{ flex: 1 }}>
+                                {selectedSummary && <ReactMarkdown>{selectedSummary.contentSum}</ReactMarkdown>}
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>

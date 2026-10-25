@@ -12,6 +12,7 @@ public class DocumentResponse {
     private String filePath;
     private String fileType;
     private LocalDateTime uploadDate;
+    private Integer pageCount;
 
     public DocumentResponse(
             Integer documentId,
@@ -19,13 +20,15 @@ public class DocumentResponse {
             String title,
             String filePath,
             String fileType,
-            LocalDateTime uploadDate) {
+            LocalDateTime uploadDate,
+            Integer pageCount) {
         this.documentId = documentId;
         this.userId = userId;
         this.title = title;
         this.filePath = filePath;
         this.fileType = fileType;
         this.uploadDate = uploadDate;
+        this.pageCount = pageCount;
     }
 
     public static DocumentResponse fromEntity(Document document) {
@@ -35,7 +38,8 @@ public class DocumentResponse {
                 document.getTitle(),
                 document.getFilePath(),
                 document.getFileType(),
-                document.getUploadDate());
+                document.getUploadDate(),
+                document.getPageCount());
     }
 
     public Integer getDocumentId() {
@@ -60,5 +64,9 @@ public class DocumentResponse {
 
     public LocalDateTime getUploadDate() {
         return uploadDate;
+    }
+
+    public Integer getPageCount() {
+        return pageCount;
     }
 }

@@ -37,6 +37,9 @@ public class Document {
     @Column(name = "upload_date", nullable = false)
     private LocalDateTime uploadDate;
 
+    @Column(name = "page_count")
+    private Integer pageCount;
+
     public Document() {
     }
 
@@ -94,5 +97,13 @@ public class Document {
 
     public void setUploadDate(LocalDateTime uploadDate) {
         this.uploadDate = uploadDate;
+    }
+
+    public Integer getPageCount() {
+        return pageCount;
+    }
+
+    public void setPageCount(Integer pageCount) {
+        this.pageCount = pageCount;
     }
 }

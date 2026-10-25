@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
-import { getErrorMessage } from "../api/errorMessage";
+import { getErrorMessage, getErrorStatus } from "../api/errorMessage";
 
 interface DocumentItem {
     documentId: number;
     title: string;
     uploadDate: string;
+    fileType: string;
+    pageCount: number | null;
 }
 
 interface SummaryItem {
     summaryId: number;
     documentId: number;
+}
+
+interface PageRangeInput {
+    start: string;
+    end: string;
 }
 
 function Documents() {
@@ -28,6 +35,9 @@ function Documents() {
     const [summaryExists, setSummaryExists] = useState<Record<number, boolean>>({});
     const [summarizingId, setSummarizingId] = useState<number | null>(null);
     const [summarizeErrors, setSummarizeErrors] = useState<Record<number, string>>({});
+    const [incompleteTextDocIds, setIncompleteTextDocIds] = useState<Record<number, boolean>>({});
+    const [pageRangeInputs, setPageRangeInputs] = useState<Record<number, PageRangeInput>>({});
+    const [visionInputs, setVisionInputs] = useState<Record<number, boolean>>({});
 
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [deleteErrors, setDeleteErrors] = useState<Record<number, string>>({});
@@ -108,18 +118,86 @@ function Documents() {
         }
     };
 
-    const handleSummarize = async (documentId: number) => {
+    const updatePageRangeInput = (documentId: number, field: "start" | "end", value: string) => {
+        setPageRangeInputs((prev) => ({
+            ...prev,
+            [documentId]: {
+                start: field === "start" ? value : prev[documentId]?.start ?? "",
+                end: field === "end" ? value : prev[documentId]?.end ?? "",
+            },
+        }));
+    };
+
+    const handleSummarize = async (documentId: number, pageCount: number | null) => {
+        const range = pageRangeInputs[documentId] ?? { start: "", end: "" };
+        const visionChecked = visionInputs[documentId] ?? false;
+        const startRaw = range.start.trim();
+        const endRaw = range.end.trim();
+
+        if (visionChecked && (!startRaw || !endRaw)) {
+            setSummarizeErrors((prev) => ({
+                ...prev,
+                [documentId]: "กรุณาระบุช่วงหน้าเมื่อเลือกอ่านแบบภาพ",
+            }));
+            return;
+        }
+
+        let body: { startPage?: number; endPage?: number; mode?: string } | undefined;
+
+        if (startRaw || endRaw) {
+            if (!startRaw || !endRaw) {
+                setSummarizeErrors((prev) => ({ ...prev, [documentId]: "กรุณากรอกทั้งหน้าเริ่มและหน้าจบ" }));
+                return;
+            }
+
+            const startPage = Number(startRaw);
+            const endPage = Number(endRaw);
+
+            if (!Number.isInteger(startPage) || !Number.isInteger(endPage) || startPage < 1) {
+                setSummarizeErrors((prev) => ({ ...prev, [documentId]: "หน้าเริ่มและหน้าจบต้องเป็นจำนวนเต็มบวก" }));
+                return;
+            }
+
+            if (endPage < startPage) {
+                setSummarizeErrors((prev) => ({ ...prev, [documentId]: "หน้าจบต้องไม่น้อยกว่าหน้าเริ่ม" }));
+                return;
+            }
+
+            if (pageCount != null && endPage > pageCount) {
+                setSummarizeErrors((prev) => ({
+                    ...prev,
+                    [documentId]: `เอกสารนี้มี ${pageCount} หน้า กรุณากรอกหน้าจบไม่เกิน ${pageCount}`,
+                }));
+                return;
+            }
+
+            body = { startPage, endPage };
+        }
+
+        if (visionChecked) {
+            body = { ...(body ?? {}), mode: "vision" };
+        }
+
         setSummarizingId(documentId);
         setSummarizeErrors((prev) => ({ ...prev, [documentId]: "" }));
+        setIncompleteTextDocIds((prev) => ({ ...prev, [documentId]: false }));
 
         try {
-            await api.post(`/api/documents/${documentId}/summarize`);
+            if (body) {
+                await api.post(`/api/documents/${documentId}/summarize`, body);
+            } else {
+                await api.post(`/api/documents/${documentId}/summarize`);
+            }
             setSummaryExists((prev) => ({ ...prev, [documentId]: true }));
             navigate(`/documents/${documentId}`);
         } catch (error) {
             setSummarizeErrors((prev) => ({
                 ...prev,
                 [documentId]: getErrorMessage(error, "เกิดข้อผิดพลาดระหว่างสรุปเอกสาร กรุณาลองใหม่อีกครั้ง"),
+            }));
+            setIncompleteTextDocIds((prev) => ({
+                ...prev,
+                [documentId]: getErrorStatus(error) === 422,
             }));
         } finally {
             setSummarizingId(null);
@@ -188,18 +266,65 @@ function Documents() {
             ) : (
                 <ul>
                     {documents.map((doc) => (
-                        <li key={doc.documentId}>
-                            {doc.title} — {new Date(doc.uploadDate).toLocaleString("th-TH")}{" "}
-                            {summaryExists[doc.documentId] ? (
+                        <li key={doc.documentId} style={{ marginBottom: "12px" }}>
+                            {doc.title} — {new Date(doc.uploadDate).toLocaleString("th-TH")}
+                            <br />
+                            {doc.fileType === "pdf" && (
+                                <>
+                                    {doc.pageCount != null && <>เอกสารนี้ {doc.pageCount} หน้า{" "}</>}
+                                    <input
+                                        type="number"
+                                        placeholder="หน้าเริ่ม"
+                                        style={{ width: "5rem" }}
+                                        value={pageRangeInputs[doc.documentId]?.start ?? ""}
+                                        onChange={(e) =>
+                                            updatePageRangeInput(doc.documentId, "start", e.target.value)
+                                        }
+                                    />
+                                    {" - "}
+                                    <input
+                                        type="number"
+                                        placeholder="หน้าจบ"
+                                        style={{ width: "5rem" }}
+                                        value={pageRangeInputs[doc.documentId]?.end ?? ""}
+                                        onChange={(e) =>
+                                            updatePageRangeInput(doc.documentId, "end", e.target.value)
+                                        }
+                                    />
+                                    {" "}
+                                    (เว้นว่าง = ทั้งไฟล์){" "}
+                                    <br />
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            checked={visionInputs[doc.documentId] ?? false}
+                                            onChange={(e) =>
+                                                setVisionInputs((prev) => ({
+                                                    ...prev,
+                                                    [doc.documentId]: e.target.checked,
+                                                }))
+                                            }
+                                        />
+                                        {" "}อ่านแบบภาพ (สำหรับไฟล์สแกน ลายมือ หรือสูตร)
+                                    </label>
+                                    {visionInputs[doc.documentId] && (
+                                        <p style={{ color: "darkorange" }}>
+                                            ใช้เวลานานกว่าและเสียค่าใช้จ่ายมากกว่าการอ่านแบบข้อความปกติ
+                                            ต้องระบุช่วงหน้าเสมอเมื่อเลือกโหมดนี้
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                            <button
+                                onClick={() => handleSummarize(doc.documentId, doc.pageCount)}
+                                disabled={summarizingId === doc.documentId}
+                            >
+                                {summarizingId === doc.documentId ? "กำลังสรุป..." : "สรุป"}
+                            </button>
+                            {" "}
+                            {summaryExists[doc.documentId] && (
                                 <button onClick={() => navigate(`/documents/${doc.documentId}`)}>
                                     ดูสรุป
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={() => handleSummarize(doc.documentId)}
-                                    disabled={summarizingId === doc.documentId}
-                                >
-                                    {summarizingId === doc.documentId ? "กำลังสรุป..." : "สรุป"}
                                 </button>
                             )}
                             {" "}
@@ -210,7 +335,24 @@ function Documents() {
                                 {deletingId === doc.documentId ? "กำลังลบ..." : "ลบ"}
                             </button>
                             {summarizeErrors[doc.documentId] && (
-                                <p style={{ color: "red" }}>{summarizeErrors[doc.documentId]}</p>
+                                <p style={{ color: "red" }}>
+                                    {summarizeErrors[doc.documentId]}
+                                    {incompleteTextDocIds[doc.documentId] && (
+                                        <>
+                                            {" "}
+                                            <button
+                                                onClick={() =>
+                                                    setVisionInputs((prev) => ({
+                                                        ...prev,
+                                                        [doc.documentId]: true,
+                                                    }))
+                                                }
+                                            >
+                                                ติ๊กอ่านแบบภาพให้เอกสารนี้
+                                            </button>
+                                        </>
+                                    )}
+                                </p>
                             )}
                             {deleteErrors[doc.documentId] && (
                                 <p style={{ color: "red" }}>{deleteErrors[doc.documentId]}</p>

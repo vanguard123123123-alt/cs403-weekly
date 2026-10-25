@@ -8,16 +8,17 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.backend.dto.DocumentResponse;
+import com.example.backend.dto.SummarizeRequest;
 import com.example.backend.dto.SummaryResponse;
 import com.example.backend.entity.User;
 import com.example.backend.exception.InvalidCredentialsException;
-import com.example.backend.repository.DocumentRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.DocumentService;
 import com.example.backend.service.SummaryService;
@@ -29,17 +30,14 @@ public class DocumentController {
     private final DocumentService documentService;
     private final SummaryService summaryService;
     private final UserRepository userRepository;
-    private final DocumentRepository documentRepository;
 
     public DocumentController(
             DocumentService documentService,
             SummaryService summaryService,
-            UserRepository userRepository,
-            DocumentRepository documentRepository) {
+            UserRepository userRepository) {
         this.documentService = documentService;
         this.summaryService = summaryService;
         this.userRepository = userRepository;
-        this.documentRepository = documentRepository;
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -59,20 +57,18 @@ public class DocumentController {
         User user = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(InvalidCredentialsException::new);
 
-        List<DocumentResponse> documents = documentRepository.findByUser(user)
-                .stream()
-                .map(DocumentResponse::fromEntity)
-                .toList();
-
-        return ResponseEntity.ok(documents);
+        return ResponseEntity.ok(documentService.listForUser(user));
     }
 
     @PostMapping("/{id}/summarize")
-    public ResponseEntity<SummaryResponse> summarize(@PathVariable Integer id, Authentication authentication) {
+    public ResponseEntity<SummaryResponse> summarize(
+            @PathVariable Integer id,
+            @RequestBody(required = false) SummarizeRequest request,
+            Authentication authentication) {
         User user = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(InvalidCredentialsException::new);
 
-        SummaryResponse response = summaryService.summarizeDocument(id, user);
+        SummaryResponse response = summaryService.summarizeDocument(id, user, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     @GetMapping("/{id}/summaries")
