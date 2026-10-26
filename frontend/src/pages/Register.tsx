@@ -63,6 +63,11 @@ function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
             />
+            <p style={{ color: "#555", fontSize: "0.9rem", maxWidth: "420px" }}>
+                ระบบนี้ใช้ OpenAI ในการสรุปเอกสาร ไฟล์ที่อัปโหลด (รวมภาพหน้าเอกสารในโหมดอ่านแบบภาพ)
+                จะถูกส่งไปประมวลผล โปรดอย่าอัปโหลดเอกสารส่วนตัวหรือความลับ และอย่าใช้รหัสผ่านเดียวกับบัญชีอื่น
+                ระบบนี้เป็นโปรเจกต์ทดสอบเพื่อการศึกษา
+            </p>
             <button onClick={handleRegister} disabled={submitting}>
                 สมัครสมาชิก
             </button>
