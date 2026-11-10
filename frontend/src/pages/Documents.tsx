@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
 import { getErrorMessage, getErrorStatus } from "../api/errorMessage";
+import Layout from "../components/Layout";
 
 interface DocumentItem {
     documentId: number;
@@ -232,11 +233,15 @@ function Documents() {
     };
 
     if (loading) {
-        return <p>กำลังโหลด...</p>;
+        return (
+            <Layout>
+                <p>กำลังโหลด...</p>
+            </Layout>
+        );
     }
 
     return (
-        <div>
+        <Layout>
             <button onClick={handleLogout}>ออกจากระบบ</button>
             <button onClick={() => navigate("/dashboard")}>ไปหน้า Dashboard</button>
             <h1>เอกสารของฉัน</h1>
@@ -361,7 +366,7 @@ function Documents() {
                     ))}
                 </ul>
             )}
-        </div>
+        </Layout>
     );
 }
 

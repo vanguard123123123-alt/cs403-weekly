@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
 import { getErrorMessage } from "../api/errorMessage";
 import { stripMarkdown } from "../utils/stripMarkdown";
+import Layout from "../components/Layout";
 
 interface RecentSummaryItem {
     summaryId: number;
@@ -53,11 +54,15 @@ function Dashboard() {
     };
 
     if (loading) {
-        return <p>กำลังโหลด...</p>;
+        return (
+            <Layout>
+                <p>กำลังโหลด...</p>
+            </Layout>
+        );
     }
 
     return (
-        <div>
+        <Layout>
             <button onClick={handleLogout}>ออกจากระบบ</button>
             <h1>Dashboard</h1>
             <button onClick={() => navigate("/documents")}>ไปหน้ารายการเอกสาร</button>
@@ -103,7 +108,7 @@ function Dashboard() {
                     )}
                 </>
             )}
-        </div>
+        </Layout>
     );
 }
 

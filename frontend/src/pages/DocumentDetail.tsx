@@ -6,6 +6,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import api from "../api/axiosClient";
 import { getErrorMessage } from "../api/errorMessage";
+import Layout from "../components/Layout";
 
 interface DocumentItem {
     documentId: number;
@@ -93,22 +94,26 @@ function DocumentDetail() {
     }, [id, navigate]);
 
     if (loading) {
-        return <p>กำลังโหลด...</p>;
+        return (
+            <Layout>
+                <p>กำลังโหลด...</p>
+            </Layout>
+        );
     }
 
     if (notFound || !documentInfo) {
         return (
-            <div>
+            <Layout>
                 <button onClick={() => navigate("/documents")}>กลับไปรายการเอกสาร</button>
                 <p>ไม่พบเอกสารนี้</p>
-            </div>
+            </Layout>
         );
     }
 
     const selectedSummary = summaries.find((s) => s.summaryId === selectedSummaryId) ?? null;
 
     return (
-        <div>
+        <Layout>
             <button onClick={() => navigate("/documents")}>กลับไปรายการเอกสาร</button>
 
             <div style={{ display: "flex", gap: "2rem" }}>
@@ -159,7 +164,7 @@ function DocumentDetail() {
                     )}
                 </div>
             </div>
-        </div>
+        </Layout>
     );
 }
 
