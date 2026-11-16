@@ -9,16 +9,16 @@ interface AlertProps {
 }
 
 const variantClasses: Record<AlertVariant, string> = {
-    success: "bg-green-50 text-green-800 border-green-200",
-    error: "bg-red-50 text-red-700 border-red-200",
-    warning: "bg-amber-50 text-amber-800 border-amber-200",
+    success: "bg-success-50 text-success-800 border-success-200",
+    error: "bg-danger-50 text-danger-700 border-danger-200",
+    warning: "bg-warning-50 text-warning-900 border-warning-300",
 };
 
 function Alert({ variant, children, className = "" }: AlertProps) {
     return (
         <div
             role={variant === "error" ? "alert" : "status"}
-            className={`rounded-lg border px-3 py-2 text-sm ${variantClasses[variant]} ${className}`}
+            className={`rounded-lg border px-3 py-2 text-sm leading-relaxed ${variantClasses[variant]} ${className}`}
         >
             {children}
         </div>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Button from "./Button";
+import { APP_NAME } from "../constants/app";
 
 interface LayoutProps {
     children: ReactNode;
@@ -19,7 +20,7 @@ function Layout({ children }: LayoutProps) {
             <header className="border-b border-border bg-surface">
                 <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
                     <Link to="/dashboard" className="text-lg font-semibold text-primary-700">
-                        มาซัมดิ
+                        {APP_NAME}
                     </Link>
                     <nav className="flex flex-wrap items-center gap-4 text-sm font-medium text-ink-muted">
                         <Link to="/dashboard" className="hover:text-primary-600">

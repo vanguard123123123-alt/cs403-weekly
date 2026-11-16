@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import api from "../api/axiosClient";
+import { APP_NAME } from "../constants/app";
 
 function Login(){
     const navigate = useNavigate();
@@ -42,8 +43,11 @@ function Login(){
     };
     return(
         <div>
+            <Link to="/" className="text-sm font-semibold text-primary-700">
+                {APP_NAME}
+            </Link>
             <h1>เข้าสู่ระบบ</h1>
-            {successMessage && <p style={{ color: "green" }}>{successMessage}</p>}
+            {successMessage && <p className="text-success-800">{successMessage}</p>}
             <input
                  type = "email"
                  placeholder = "อีเมล"
@@ -58,7 +62,13 @@ function Login(){
             />
             <button onClick={handleLogin} disabled={submitting}>เข้าสู่ระบบ</button>
             {submitting && <p>กำลังเข้าสู่ระบบ...</p>}
-            {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
+            {errorMessage && <p className="text-danger-700">{errorMessage}</p>}
+            <p className="mt-3 text-sm text-ink-muted">
+                ยังไม่มีบัญชี?{" "}
+                <Link to="/register" className="text-primary-600 underline">
+                    สมัครสมาชิก
+                </Link>
+            </p>
         </div>
     );
 }

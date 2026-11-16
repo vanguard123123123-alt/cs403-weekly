@@ -10,14 +10,14 @@ interface BadgeProps {
 const variantClasses: Record<BadgeVariant, string> = {
     primary: "bg-primary-50 text-primary-700",
     neutral: "bg-background text-ink-muted",
-    success: "bg-green-50 text-green-700",
-    warning: "bg-amber-50 text-amber-800",
+    success: "bg-success-50 text-success-800",
+    warning: "bg-warning-50 text-warning-900",
 };
 
 function Badge({ variant = "neutral", children }: BadgeProps) {
     return (
         <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variantClasses[variant]}`}
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs leading-relaxed font-medium ${variantClasses[variant]}`}
         >
             {children}
         </span>

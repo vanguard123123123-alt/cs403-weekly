@@ -263,7 +263,7 @@ function Documents() {
                     อัปโหลด
                 </button>
                 {uploading && <p>กำลังอัปโหลด...</p>}
-                {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
+                {errorMessage && <p className="text-danger-700">{errorMessage}</p>}
             </div>
 
             {documents.length === 0 ? (
@@ -313,7 +313,7 @@ function Documents() {
                                         {" "}อ่านแบบภาพ (สำหรับไฟล์สแกน ลายมือ หรือสูตร)
                                     </label>
                                     {visionInputs[doc.documentId] && (
-                                        <p style={{ color: "darkorange" }}>
+                                        <p className="text-warning-900">
                                             ใช้เวลานานกว่าและเสียค่าใช้จ่ายมากกว่าการอ่านแบบข้อความปกติ
                                             ต้องระบุช่วงหน้าเสมอเมื่อเลือกโหมดนี้
                                         </p>
@@ -340,7 +340,7 @@ function Documents() {
                                 {deletingId === doc.documentId ? "กำลังลบ..." : "ลบ"}
                             </button>
                             {summarizeErrors[doc.documentId] && (
-                                <p style={{ color: "red" }}>
+                                <p className="text-danger-700">
                                     {summarizeErrors[doc.documentId]}
                                     {incompleteTextDocIds[doc.documentId] && (
                                         <>
@@ -360,7 +360,7 @@ function Documents() {
                                 </p>
                             )}
                             {deleteErrors[doc.documentId] && (
-                                <p style={{ color: "red" }}>{deleteErrors[doc.documentId]}</p>
+                                <p className="text-danger-700">{deleteErrors[doc.documentId]}</p>
                             )}
                         </li>
                     ))}

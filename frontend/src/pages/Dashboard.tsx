@@ -67,20 +67,20 @@ function Dashboard() {
             <h1>Dashboard</h1>
             <button onClick={() => navigate("/documents")}>ไปหน้ารายการเอกสาร</button>
 
-            {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
+            {errorMessage && <p className="text-danger-700">{errorMessage}</p>}
 
             {data && (
                 <>
                     <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
-                        <div style={{ border: "1px solid #ccc", padding: "1rem" }}>
+                        <div style={{ border: "1px solid var(--color-border)", padding: "1rem" }}>
                             <p>เอกสารทั้งหมด</p>
                             <p>{data.totalDocuments}</p>
                         </div>
-                        <div style={{ border: "1px solid #ccc", padding: "1rem" }}>
+                        <div style={{ border: "1px solid var(--color-border)", padding: "1rem" }}>
                             <p>สรุปทั้งหมด</p>
                             <p>{data.totalSummaries}</p>
                         </div>
-                        <div style={{ border: "1px solid #ccc", padding: "1rem" }}>
+                        <div style={{ border: "1px solid var(--color-border)", padding: "1rem" }}>
                             <p>สรุปวันนี้</p>
                             <p>
                                 {data.summariesToday} / {data.dailyLimit}

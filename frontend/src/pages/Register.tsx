@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import api from "../api/axiosClient";
+import { APP_NAME } from "../constants/app";
 
 function Register() {
     const navigate = useNavigate();
@@ -44,6 +45,9 @@ function Register() {
 
     return (
         <div>
+            <Link to="/" className="text-sm font-semibold text-primary-700">
+                {APP_NAME}
+            </Link>
             <h1>สมัครสมาชิก</h1>
             <input
                 type="text"
@@ -63,7 +67,7 @@ function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
             />
-            <p style={{ color: "#555", fontSize: "0.9rem", maxWidth: "420px" }}>
+            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem", maxWidth: "420px" }}>
                 ระบบนี้ใช้ OpenAI ในการสรุปเอกสาร ไฟล์ที่อัปโหลด (รวมภาพหน้าเอกสารในโหมดอ่านแบบภาพ)
                 จะถูกส่งไปประมวลผล โปรดอย่าอัปโหลดเอกสารส่วนตัวหรือความลับ และอย่าใช้รหัสผ่านเดียวกับบัญชีอื่น
                 ระบบนี้เป็นโปรเจกต์ทดสอบเพื่อการศึกษา
@@ -72,7 +76,13 @@ function Register() {
                 สมัครสมาชิก
             </button>
             {submitting && <p>กำลังสมัคร...</p>}
-            {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
+            {errorMessage && <p className="text-danger-700">{errorMessage}</p>}
+            <p className="mt-3 text-sm text-ink-muted">
+                มีบัญชีแล้ว?{" "}
+                <Link to="/login" className="text-primary-600 underline">
+                    เข้าสู่ระบบ
+                </Link>
+            </p>
         </div>
     );
 }

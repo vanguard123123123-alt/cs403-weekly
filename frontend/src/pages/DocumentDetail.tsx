@@ -141,7 +141,7 @@ function DocumentDetail() {
                                             {s.mode === "vision" && (
                                                 <>
                                                     {" "}
-                                                    <span style={{ color: "darkorange" }}>[อ่านแบบภาพ]</span>
+                                                    <span className="text-warning-900">[อ่านแบบภาพ]</span>
                                                 </>
                                             )}
                                             <br />
