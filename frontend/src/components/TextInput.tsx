@@ -17,7 +17,7 @@ function TextInput({ label, id, name, className = "", ...rest }: TextInputProps)
             <input
                 id={inputId}
                 name={name}
-                className={`w-full rounded-lg border border-border bg-surface px-3 py-2 text-ink placeholder:text-ink-muted focus:border-primary-500 focus:outline focus:outline-2 focus:outline-primary-200 ${className}`}
+                className={`w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-base text-ink placeholder:text-ink-muted focus:border-primary-500 focus:outline focus:outline-2 focus:outline-primary-200 ${className}`}
                 {...rest}
             />
         </div>
