@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Button from "./Button";
 import { APP_NAME } from "../constants/app";
 
@@ -9,25 +9,29 @@ interface LayoutProps {
 
 function Layout({ children }: LayoutProps) {
     const navigate = useNavigate();
+    const location = useLocation();
 
     const handleLogout = () => {
         localStorage.removeItem("token");
         navigate("/login");
     };
 
+    const navLinkClass = (path: string) =>
+        `hover:text-primary-600 ${location.pathname.startsWith(path) ? "font-semibold text-primary-700" : ""}`;
+
     return (
         <div className="flex min-h-svh flex-col bg-background text-ink">
             <header className="border-b border-border bg-surface">
                 <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-                    <Link to="/dashboard" className="text-lg font-semibold text-primary-700">
+                    <Link to="/documents" className="text-lg font-semibold text-primary-700">
                         {APP_NAME}
                     </Link>
                     <nav className="flex flex-wrap items-center gap-4 text-sm font-medium text-ink-muted">
-                        <Link to="/dashboard" className="hover:text-primary-600">
-                            Dashboard
+                        <Link to="/documents" className={navLinkClass("/documents")}>
+                            เอกสารของฉัน
                         </Link>
-                        <Link to="/documents" className="hover:text-primary-600">
-                            เอกสาร
+                        <Link to="/dashboard" className={navLinkClass("/dashboard")}>
+                            Dashboard
                         </Link>
                         <Button variant="secondary" onClick={handleLogout}>
                             ออกจากระบบ

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.example.backend.dto.RecentSummaryItem;
+import com.example.backend.dto.SummaryStatsRow;
 import com.example.backend.entity.Document;
 import com.example.backend.entity.Summary;
 import com.example.backend.entity.User;
@@ -16,6 +17,13 @@ import com.example.backend.entity.User;
 public interface SummaryRepository extends JpaRepository<Summary, Integer> {
 
     List<Summary> findByDocument(Document document);
+
+    // Single query for every summary belonging to the user's documents, used to
+    // compute per-document and per-week statistics in memory instead of per-document queries.
+    @Query("SELECT new com.example.backend.dto.SummaryStatsRow("
+            + "s.document.documentId, s.startPage, s.endPage, s.createdAt) "
+            + "FROM Summary s WHERE s.document.user = :user")
+    List<SummaryStatsRow> findStatsByUser(@Param("user") User user);
 
     // Excludes vision-mode summaries so the general (text) daily limit and the
     // vision-specific daily limit are fully independent quotas, as intended.

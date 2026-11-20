@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.backend.dto.DocumentResponse;
+import com.example.backend.dto.SummaryStatsRow;
 import com.example.backend.entity.Document;
 import com.example.backend.entity.User;
 import com.example.backend.exception.DocumentNotFoundException;
@@ -108,14 +110,19 @@ public class DocumentService {
             }
         }
 
-        return DocumentResponse.fromEntity(documentRepository.save(document));
+        return DocumentResponse.fromEntity(documentRepository.save(document), List.of());
     }
 
     public List<DocumentResponse> listForUser(User user) {
+        Map<Integer, List<SummaryStatsRow>> statsByDocument = summaryRepository.findStatsByUser(user)
+                .stream()
+                .collect(Collectors.groupingBy(SummaryStatsRow::documentId));
+
         return documentRepository.findByUser(user)
                 .stream()
                 .map(this::ensurePageCount)
-                .map(DocumentResponse::fromEntity)
+                .map(document -> DocumentResponse.fromEntity(
+                        document, statsByDocument.getOrDefault(document.getDocumentId(), List.of())))
                 .toList();
     }
 

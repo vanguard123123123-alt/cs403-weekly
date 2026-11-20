@@ -1,8 +1,10 @@
 package com.example.backend.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.example.backend.entity.Document;
+import com.example.backend.util.DocumentStatsCalculator;
 
 public class DocumentResponse {
 
@@ -13,6 +15,9 @@ public class DocumentResponse {
     private String fileType;
     private LocalDateTime uploadDate;
     private Integer pageCount;
+    private int summaryCount;
+    private LocalDateTime lastSummaryAt;
+    private Integer coveredPages;
 
     public DocumentResponse(
             Integer documentId,
@@ -21,7 +26,10 @@ public class DocumentResponse {
             String filePath,
             String fileType,
             LocalDateTime uploadDate,
-            Integer pageCount) {
+            Integer pageCount,
+            int summaryCount,
+            LocalDateTime lastSummaryAt,
+            Integer coveredPages) {
         this.documentId = documentId;
         this.userId = userId;
         this.title = title;
@@ -29,9 +37,13 @@ public class DocumentResponse {
         this.fileType = fileType;
         this.uploadDate = uploadDate;
         this.pageCount = pageCount;
+        this.summaryCount = summaryCount;
+        this.lastSummaryAt = lastSummaryAt;
+        this.coveredPages = coveredPages;
     }
 
-    public static DocumentResponse fromEntity(Document document) {
+    // summaries must be every SummaryStatsRow belonging to this document (not just one page).
+    public static DocumentResponse fromEntity(Document document, List<SummaryStatsRow> summaries) {
         return new DocumentResponse(
                 document.getDocumentId(),
                 document.getUser().getUserId(),
@@ -39,7 +51,10 @@ public class DocumentResponse {
                 document.getFilePath(),
                 document.getFileType(),
                 document.getUploadDate(),
-                document.getPageCount());
+                document.getPageCount(),
+                summaries.size(),
+                DocumentStatsCalculator.lastSummaryAt(summaries),
+                DocumentStatsCalculator.coveredPages(document, summaries));
     }
 
     public Integer getDocumentId() {
@@ -68,5 +83,17 @@ public class DocumentResponse {
 
     public Integer getPageCount() {
         return pageCount;
+    }
+
+    public int getSummaryCount() {
+        return summaryCount;
+    }
+
+    public LocalDateTime getLastSummaryAt() {
+        return lastSummaryAt;
+    }
+
+    public Integer getCoveredPages() {
+        return coveredPages;
     }
 }

@@ -57,7 +57,7 @@ function Landing() {
     };
 
     const primaryAction = isLoggedIn
-        ? { label: "ไปที่ Dashboard", path: "/dashboard" }
+        ? { label: "ไปที่เอกสารของฉัน", path: "/documents" }
         : { label: "เริ่มต้นทดลองใช้", path: "/register" };
 
     return (

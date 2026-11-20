@@ -30,7 +30,7 @@ function Login() {
                 password: password,
             });
             localStorage.setItem("token", response.data.token);
-            navigate("/dashboard");
+            navigate("/documents");
         } catch (error) {
             console.log("Login ไม่สำเร็จ:", error);
             if (!axios.isAxiosError(error)) {

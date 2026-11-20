@@ -16,4 +16,12 @@ public final class BangkokTime {
     public static LocalDateTime startOfToday() {
         return LocalDate.now(ZONE).atStartOfDay();
     }
+
+    public static LocalDate mondayOf(LocalDate date) {
+        return date.minusDays(date.getDayOfWeek().getValue() - 1L);
+    }
+
+    public static LocalDate currentWeekStart() {
+        return mondayOf(LocalDate.now(ZONE));
+    }
 }
