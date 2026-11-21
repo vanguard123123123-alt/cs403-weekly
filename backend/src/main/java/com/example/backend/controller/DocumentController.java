@@ -1,5 +1,8 @@
 package com.example.backend.controller;
 import java.util.List;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +24,7 @@ import com.example.backend.entity.User;
 import com.example.backend.exception.InvalidCredentialsException;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.DocumentService;
+import com.example.backend.service.DocumentService.DocumentFile;
 import com.example.backend.service.SummaryService;
 
 @RestController
@@ -78,6 +82,20 @@ public ResponseEntity<List<SummaryResponse>> getSummaries(@PathVariable Integer 
 
     return ResponseEntity.ok(summaryService.getSummariesByDocument(id, user));
 }
+
+    @GetMapping("/{id}/file")
+    public ResponseEntity<Resource> getFile(@PathVariable Integer id, Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(InvalidCredentialsException::new);
+
+        DocumentFile file = documentService.getOriginalFile(id, user);
+
+        return ResponseEntity.ok()
+                .contentType(file.mediaType())
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .cacheControl(CacheControl.noStore())
+                .body(file.resource());
+    }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id, Authentication authentication) {

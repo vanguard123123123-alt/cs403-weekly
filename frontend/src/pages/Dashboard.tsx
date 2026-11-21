@@ -7,6 +7,7 @@ import "katex/dist/katex.min.css";
 import api from "../api/axiosClient";
 import { getErrorMessage } from "../api/errorMessage";
 import { coveredPagesForSummaries } from "../utils/pageRangeMerger";
+import { formatDateTime, pageRangeLabel } from "../utils/roundFormatting";
 import Layout from "../components/Layout";
 import Card from "../components/Card";
 import Button from "../components/Button";
@@ -52,17 +53,6 @@ interface SummaryItem {
 
 interface Round extends SummaryItem {
     roundNumber: number;
-}
-
-function pageRangeLabel(round: SummaryItem): string {
-    if (round.startPage == null || round.endPage == null) {
-        return "ทั้งไฟล์";
-    }
-    return `หน้า ${round.startPage}-${round.endPage}`;
-}
-
-function formatDateTime(value: string): string {
-    return new Date(value).toLocaleString("th-TH");
 }
 
 function pickDefaultDocument(documents: DashboardDocumentItem[]): DashboardDocumentItem | null {

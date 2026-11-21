@@ -1,6 +1,7 @@
 package com.example.backend.service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -14,6 +15,9 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,6 +30,8 @@ import com.example.backend.exception.DocumentNotFoundException;
 import com.example.backend.exception.FileStorageException;
 import com.example.backend.exception.ForbiddenException;
 import com.example.backend.exception.InvalidFileTypeException;
+import com.example.backend.exception.OriginalFileNotFoundException;
+import com.example.backend.exception.UnservableFileTypeException;
 import com.example.backend.repository.DocumentRepository;
 import com.example.backend.repository.SummaryRepository;
 
@@ -44,6 +50,15 @@ public class DocumentService {
             "image/webp", "webp");
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "txt", "jpg", "jpeg", "png", "gif", "webp");
+
+    // Only these file types can be streamed back through GET /{id}/file; anything
+    // else (e.g. the image types accepted at upload time) is rejected with 415.
+    private static final Map<String, MediaType> SERVABLE_MEDIA_TYPES = Map.of(
+            "pdf", MediaType.APPLICATION_PDF,
+            "txt", new MediaType("text", "plain", StandardCharsets.UTF_8));
+
+    public record DocumentFile(Resource resource, MediaType mediaType) {
+    }
 
     private final DocumentRepository documentRepository;
     private final SummaryRepository summaryRepository;
@@ -143,14 +158,39 @@ public class DocumentService {
         }
     }
 
-    @Transactional
-    public void deleteDocument(Integer documentId, User currentUser) {
+    // Looks up a document and verifies it belongs to currentUser; every endpoint
+    // that operates on a specific document by id should go through this instead
+    // of repeating the lookup-then-ownership-check pattern.
+    public Document getOwnedDocument(Integer documentId, User currentUser) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new DocumentNotFoundException(documentId));
 
         if (!document.getUser().getUserId().equals(currentUser.getUserId())) {
             throw new ForbiddenException("You do not have access to this document");
         }
+
+        return document;
+    }
+
+    public DocumentFile getOriginalFile(Integer documentId, User currentUser) {
+        Document document = getOwnedDocument(documentId, currentUser);
+
+        MediaType mediaType = SERVABLE_MEDIA_TYPES.get(document.getFileType().toLowerCase(Locale.ROOT));
+        if (mediaType == null) {
+            throw new UnservableFileTypeException(document.getFileType());
+        }
+
+        Path path = uploadPathResolver.resolve(document.getFilePath());
+        if (!Files.isRegularFile(path)) {
+            throw new OriginalFileNotFoundException();
+        }
+
+        return new DocumentFile(new FileSystemResource(path), mediaType);
+    }
+
+    @Transactional
+    public void deleteDocument(Integer documentId, User currentUser) {
+        Document document = getOwnedDocument(documentId, currentUser);
 
         summaryRepository.deleteAll(summaryRepository.findByDocument(document));
         documentRepository.delete(document);

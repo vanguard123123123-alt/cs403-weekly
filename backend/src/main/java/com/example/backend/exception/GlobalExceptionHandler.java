@@ -38,6 +38,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", ex.getMessage()));
     }
 
+    @ExceptionHandler(OriginalFileNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleOriginalFileNotFound(OriginalFileNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(UnservableFileTypeException.class)
+    public ResponseEntity<Map<String, String>> handleUnservableFileType(UnservableFileTypeException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(Map.of("message", ex.getMessage()));
+    }
+
     @ExceptionHandler(EmptyDocumentException.class)
     public ResponseEntity<Map<String, String>> handleEmptyDocument(EmptyDocumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));

@@ -15,13 +15,10 @@ import com.example.backend.entity.Document;
 import com.example.backend.entity.Summary;
 import com.example.backend.entity.User;
 import com.example.backend.exception.DailySummaryLimitExceededException;
-import com.example.backend.exception.DocumentNotFoundException;
 import com.example.backend.exception.EmptyDocumentException;
-import com.example.backend.exception.ForbiddenException;
 import com.example.backend.exception.IncompleteTextException;
 import com.example.backend.exception.InvalidFileTypeException;
 import com.example.backend.exception.InvalidPageRangeException;
-import com.example.backend.repository.DocumentRepository;
 import com.example.backend.repository.SummaryRepository;
 import com.example.backend.util.BangkokTime;
 
@@ -34,7 +31,6 @@ public class SummaryService {
     private static final String MODE_VISION = "vision";
     private static final float VISION_RENDER_DPI = 120f;
 
-    private final DocumentRepository documentRepository;
     private final SummaryRepository summaryRepository;
     private final List<TextExtractor> textExtractors;
     private final OpenAiService openAiService;
@@ -48,7 +44,6 @@ public class SummaryService {
     private final int visionDailyLimit;
 
     public SummaryService(
-            DocumentRepository documentRepository,
             SummaryRepository summaryRepository,
             List<TextExtractor> textExtractors,
             OpenAiService openAiService,
@@ -60,7 +55,6 @@ public class SummaryService {
             @Value("${summary.max-pages:25}") int maxPagesPerRequest,
             @Value("${summary.vision-max-pages:8}") int visionMaxPages,
             @Value("${summary.vision-daily-limit:10}") int visionDailyLimit) {
-        this.documentRepository = documentRepository;
         this.summaryRepository = summaryRepository;
         this.textExtractors = textExtractors;
         this.openAiService = openAiService;
@@ -75,12 +69,7 @@ public class SummaryService {
     }
 
     public SummaryResponse summarizeDocument(Integer documentId, User currentUser, SummarizeRequest request) {
-        Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new DocumentNotFoundException(documentId));
-
-        if (!document.getUser().getUserId().equals(currentUser.getUserId())) {
-            throw new ForbiddenException("You do not have access to this document");
-        }
+        Document document = documentService.getOwnedDocument(documentId, currentUser);
 
         String requestedMode = resolveMode(request);
         Integer startPage = request != null ? request.getStartPage() : null;
@@ -148,12 +137,7 @@ public class SummaryService {
     }
 
     public List<SummaryResponse> getSummariesByDocument(Integer documentId, User currentUser) {
-        Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new DocumentNotFoundException(documentId));
-
-        if (!document.getUser().getUserId().equals(currentUser.getUserId())) {
-            throw new ForbiddenException("You do not have access to this document");
-        }
+        Document document = documentService.getOwnedDocument(documentId, currentUser);
 
         return summaryRepository.findByDocument(document)
                 .stream()
