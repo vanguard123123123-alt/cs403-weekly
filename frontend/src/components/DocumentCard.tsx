@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Badge from "./Badge";
 import Button from "./Button";
-import Alert from "./Alert";
 import Spinner from "./Spinner";
 import { coverToneForTitle } from "../utils/coverTone";
 
@@ -20,9 +19,10 @@ export interface DocumentCardItem {
 interface DocumentCardProps {
     item: DocumentCardItem;
     onSummarizeClick: (item: DocumentCardItem) => void;
+    // Only asks the page to open the shared delete-confirmation dialog; the
+    // actual DELETE call happens from there, not from this card.
     onDelete: (documentId: number, title: string) => void;
     deleting: boolean;
-    deleteError?: string;
 }
 
 const TONE_CLASSES: Record<string, string> = {
@@ -36,7 +36,7 @@ const FILE_TYPE_ICON: Record<string, string> = {
     txt: "📝",
 };
 
-function DocumentCard({ item, onSummarizeClick, onDelete, deleting, deleteError }: DocumentCardProps) {
+function DocumentCard({ item, onSummarizeClick, onDelete, deleting }: DocumentCardProps) {
     const navigate = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -156,11 +156,6 @@ function DocumentCard({ item, onSummarizeClick, onDelete, deleting, deleteError 
                     )}
                 </div>
             </div>
-            {deleteError && (
-                <div className="px-3 pb-3">
-                    <Alert variant="error">{deleteError}</Alert>
-                </div>
-            )}
         </div>
     );
 }

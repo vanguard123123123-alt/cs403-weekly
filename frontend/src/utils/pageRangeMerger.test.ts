@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coveredPagesForSummaries, countCoveredPages, mergeRanges } from "./pageRangeMerger";
+import { coveredPagesForSummaries, countCoveredPages, mergeRanges, uncoveredPageRanges } from "./pageRangeMerger";
 
 describe("mergeRanges / countCoveredPages", () => {
     it("merges duplicate ranges", () => {
@@ -74,5 +74,56 @@ describe("coveredPagesForSummaries", () => {
                 20
             )
         ).toBe(12);
+    });
+});
+
+describe("uncoveredPageRanges", () => {
+    it("is the whole file when there are no summaries at all", () => {
+        expect(uncoveredPageRanges([], 10)).toEqual([{ start: 1, end: 10 }]);
+    });
+
+    it("is empty when a summary covers the whole file (null startPage/endPage)", () => {
+        expect(uncoveredPageRanges([{ startPage: null, endPage: null }], 10)).toEqual([]);
+        expect(uncoveredPageRanges([{ startPage: null, endPage: 4 }], 10)).toEqual([]);
+        expect(uncoveredPageRanges([{ startPage: 4, endPage: null }], 10)).toEqual([]);
+    });
+
+    it("leaves the pages before and after a middle-of-file summary", () => {
+        expect(uncoveredPageRanges([{ startPage: 4, endPage: 6 }], 10)).toEqual([
+            { start: 1, end: 3 },
+            { start: 7, end: 10 },
+        ]);
+    });
+
+    it("leaves several separate gaps for non-adjacent summaries", () => {
+        expect(
+            uncoveredPageRanges(
+                [
+                    { startPage: 2, endPage: 3 },
+                    { startPage: 7, endPage: 8 },
+                ],
+                10
+            )
+        ).toEqual([
+            { start: 1, end: 1 },
+            { start: 4, end: 6 },
+            { start: 9, end: 10 },
+        ]);
+    });
+
+    it("merges overlapping summaries before computing the gap", () => {
+        expect(
+            uncoveredPageRanges(
+                [
+                    { startPage: 1, endPage: 5 },
+                    { startPage: 3, endPage: 8 },
+                ],
+                10
+            )
+        ).toEqual([{ start: 9, end: 10 }]);
+    });
+
+    it("is empty when every page is already covered by non-null ranges", () => {
+        expect(uncoveredPageRanges([{ startPage: 1, endPage: 10 }], 10)).toEqual([]);
     });
 });

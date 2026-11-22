@@ -13,6 +13,7 @@ import Button from "../components/Button";
 import Alert from "../components/Alert";
 import Spinner from "../components/Spinner";
 import SummarizeForm from "../components/SummarizeForm";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 interface DocumentInfo {
     documentId: number;
@@ -121,6 +122,7 @@ function DocumentDetail() {
     const [showReplaceForm, setShowReplaceForm] = useState(false);
     const [deletingSummary, setDeletingSummary] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     useEffect(() => {
         try {
@@ -264,6 +266,7 @@ function DocumentDetail() {
         setLabelError(null);
         setShowReplaceForm(false);
         setDeleteError(null);
+        setShowDeleteConfirm(false);
     }, [selectedSummaryId]);
 
     const startEditingLabel = (round: Round) => {
@@ -299,15 +302,18 @@ function DocumentDetail() {
         }
     };
 
-    const handleDeleteSelected = async (round: Round) => {
-        if (!documentInfo) {
-            return;
-        }
+    // Opens the shared confirmation dialog; the DELETE call itself happens in
+    // confirmDeleteSelected below once the user confirms there.
+    const requestDeleteSelected = () => {
+        setDeleteError(null);
+        setShowDeleteConfirm(true);
+    };
 
-        const confirmed = window.confirm("ต้องการลบสรุปนี้ใช่หรือไม่?");
-        if (!confirmed) {
+    const confirmDeleteSelected = async () => {
+        if (!documentInfo || !selectedRound) {
             return;
         }
+        const round = selectedRound;
 
         setDeletingSummary(true);
         setDeleteError(null);
@@ -326,6 +332,7 @@ function DocumentDetail() {
         const updated = await fetchRounds(documentInfo.documentId);
         setSelectedSummaryId(updated.length > 0 ? updated[updated.length - 1].summaryId : null);
         setDeletingSummary(false);
+        setShowDeleteConfirm(false);
     };
 
     if (loading) {
@@ -627,17 +634,14 @@ function DocumentDetail() {
 
                                             <button
                                                 type="button"
-                                                onClick={() => handleDeleteSelected(selectedRound)}
-                                                disabled={deletingSummary}
-                                                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-danger-200 bg-danger-50 px-2.5 py-1 text-xs font-medium text-danger-700 transition-colors hover:bg-danger-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                onClick={requestDeleteSelected}
+                                                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-danger-200 bg-danger-50 px-2.5 py-1 text-xs font-medium text-danger-700 transition-colors hover:bg-danger-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-600"
                                             >
-                                                {deletingSummary && <Spinner />}
                                                 ลบสรุปนี้
                                             </button>
                                         </div>
 
                                         {labelError && <Alert variant="error">{labelError}</Alert>}
-                                        {deleteError && <Alert variant="error">{deleteError}</Alert>}
 
                                         <div className="flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
                                             <span>{pageRangeLabel(selectedRound)}</span>
@@ -675,6 +679,25 @@ function DocumentDetail() {
                                                 {selectedRound.contentSum}
                                             </ReactMarkdown>
                                         </div>
+
+                                        <ConfirmDialog
+                                            open={showDeleteConfirm}
+                                            title="ลบสรุปนี้?"
+                                            message={
+                                                <>
+                                                    ลบสรุป &ldquo;
+                                                    <span className="font-medium text-ink">
+                                                        {summaryDisplayLabel(selectedRound, documentInfo.title)}
+                                                    </span>
+                                                    &rdquo; การลบไม่สามารถย้อนกลับได้
+                                                </>
+                                            }
+                                            confirmLabel="ลบสรุป"
+                                            onConfirm={confirmDeleteSelected}
+                                            onCancel={() => setShowDeleteConfirm(false)}
+                                            loading={deletingSummary}
+                                            errorMessage={deleteError}
+                                        />
                                     </div>
                                 )}
                             </>

@@ -6,6 +6,7 @@ import Layout from "../components/Layout";
 import Alert from "../components/Alert";
 import UploadModal from "../components/UploadModal";
 import SummarizeModal from "../components/SummarizeModal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import DocumentCard, { type DocumentCardItem } from "../components/DocumentCard";
 
 function DocumentCardSkeleton() {
@@ -47,6 +48,9 @@ function Documents() {
 
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [deleteErrors, setDeleteErrors] = useState<Record<number, string>>({});
+    const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<{ documentId: number; title: string } | null>(
+        null
+    );
 
     const fetchDocuments = useCallback(async () => {
         try {
@@ -71,11 +75,18 @@ function Documents() {
         fetchDocuments();
     }, [navigate, fetchDocuments]);
 
-    const handleDelete = async (documentId: number, title: string) => {
-        const confirmed = window.confirm(`ต้องการลบเอกสาร "${title}" ใช่หรือไม่?`);
-        if (!confirmed) {
+    // Opens the shared confirmation dialog; the DELETE call itself happens in
+    // confirmDelete below once the user confirms there.
+    const requestDelete = (documentId: number, title: string) => {
+        setDeleteErrors((prev) => ({ ...prev, [documentId]: "" }));
+        setConfirmDeleteTarget({ documentId, title });
+    };
+
+    const confirmDelete = async () => {
+        if (!confirmDeleteTarget) {
             return;
         }
+        const { documentId } = confirmDeleteTarget;
 
         setDeletingId(documentId);
         setDeleteErrors((prev) => ({ ...prev, [documentId]: "" }));
@@ -83,6 +94,7 @@ function Documents() {
         try {
             await api.delete(`/api/documents/${documentId}`);
             await fetchDocuments();
+            setConfirmDeleteTarget(null);
         } catch (error) {
             setDeleteErrors((prev) => ({
                 ...prev,
@@ -111,9 +123,8 @@ function Documents() {
                             key={document.documentId}
                             item={document}
                             onSummarizeClick={setSummarizeTarget}
-                            onDelete={handleDelete}
+                            onDelete={requestDelete}
                             deleting={deletingId === document.documentId}
-                            deleteError={deleteErrors[document.documentId]}
                         />
                     ))}
             </div>
@@ -137,6 +148,25 @@ function Documents() {
                     setSummarizeTarget(null);
                     navigate(`/documents/${documentId}`);
                 }}
+            />
+
+            <ConfirmDialog
+                open={confirmDeleteTarget !== null}
+                title="ลบเอกสารนี้?"
+                message={
+                    confirmDeleteTarget && (
+                        <>
+                            ลบเอกสาร &ldquo;
+                            <span className="font-medium text-ink">{confirmDeleteTarget.title}</span>
+                            &rdquo; จะลบสรุปทั้งหมดของเอกสารนี้ไปด้วย การลบไม่สามารถย้อนกลับได้
+                        </>
+                    )
+                }
+                confirmLabel="ลบเอกสาร"
+                onConfirm={confirmDelete}
+                onCancel={() => setConfirmDeleteTarget(null)}
+                loading={confirmDeleteTarget != null && deletingId === confirmDeleteTarget.documentId}
+                errorMessage={confirmDeleteTarget ? deleteErrors[confirmDeleteTarget.documentId] || null : null}
             />
         </Layout>
     );
