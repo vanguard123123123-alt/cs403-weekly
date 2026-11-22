@@ -43,6 +43,37 @@ interface Round extends SummaryItem {
 
 type Tab = "original" | "summary";
 
+// One key shared by every document (not per-document): whether the original
+// pane should be shown at lg+. Reading/writing are both wrapped in try/catch
+// so the page still renders correctly if localStorage is unavailable.
+const ORIGINAL_VISIBLE_STORAGE_KEY = "documentDetail.originalVisible";
+
+function readStoredOriginalVisible(): boolean {
+    try {
+        const stored = localStorage.getItem(ORIGINAL_VISIBLE_STORAGE_KEY);
+        return stored === null ? true : stored === "true";
+    } catch {
+        return true;
+    }
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+    return (
+        <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+            aria-hidden="true"
+        >
+            {direction === "left" ? <path d="M12 4l-6 6 6 6" /> : <path d="M8 4l6 6-6 6" />}
+        </svg>
+    );
+}
+
 function DocumentDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -64,6 +95,15 @@ function DocumentDetail() {
     const [iframeKey, setIframeKey] = useState(0);
 
     const [activeTab, setActiveTab] = useState<Tab>("summary");
+    const [originalVisible, setOriginalVisible] = useState<boolean>(readStoredOriginalVisible);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(ORIGINAL_VISIBLE_STORAGE_KEY, String(originalVisible));
+        } catch {
+            // localStorage unavailable (private mode, quota, etc.) — keep working in-memory only.
+        }
+    }, [originalVisible]);
 
     const fetchRounds = useCallback(async (documentId: number): Promise<Round[]> => {
         setLoadingRounds(true);
@@ -194,7 +234,7 @@ function DocumentDetail() {
 
     if (loading) {
         return (
-            <Layout>
+            <Layout wide>
                 <p>กำลังโหลด...</p>
             </Layout>
         );
@@ -202,7 +242,7 @@ function DocumentDetail() {
 
     if (notFound || !documentInfo) {
         return (
-            <Layout>
+            <Layout wide>
                 <Link
                     to="/documents"
                     className="inline-flex items-center gap-1 self-start rounded-xl px-3 py-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-background hover:text-ink"
@@ -217,11 +257,26 @@ function DocumentDetail() {
 
     const selectedRound = rounds.find((r) => r.summaryId === selectedSummaryId) ?? null;
     const roundsNewestFirst = [...rounds].reverse();
-    const pageFragment = selectedRound?.startPage != null ? `#page=${selectedRound.startPage}` : "";
-    const iframeSrc = fileBlobUrl ? `${fileBlobUrl}${pageFragment}` : undefined;
+    // Best-effort viewer hints for blob: URLs — see the report on whether these
+    // actually have any effect in the browsers this was checked in.
+    const viewerFragmentParts = selectedRound?.startPage != null ? [`page=${selectedRound.startPage}`] : [];
+    viewerFragmentParts.push("view=FitH");
+    const iframeSrc = fileBlobUrl ? `${fileBlobUrl}#${viewerFragmentParts.join("&")}` : undefined;
+    const summaryPaneHeightClass = rounds.length === 0 ? "lg:self-start" : "lg:h-full";
+    // The rail is its own grid column, always leftmost (col-start-1) regardless of
+    // state. The other two columns' order/count still differs between "original
+    // visible" (3 columns: rail, original, summary) and "original hidden" (2
+    // columns: rail, summary) — original/summary get an explicit lg:col-start per
+    // state instead of relying on auto-placement.
+    const gridColsClass = !originalVisible
+        ? "lg:grid-cols-[3rem_1fr]"
+        : rounds.length === 0
+          ? "lg:grid-cols-[3rem_3fr_2fr]"
+          : "lg:grid-cols-[3rem_2fr_3fr]";
+    const summaryColStartClass = originalVisible ? "lg:col-start-3" : "lg:col-start-2";
 
     return (
-        <Layout>
+        <Layout wide>
             <div className="flex min-h-0 flex-1 flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                     <Link
@@ -237,6 +292,17 @@ function DocumentDetail() {
                     <Badge variant="neutral">{documentInfo.fileType.toUpperCase()}</Badge>
                     {documentInfo.pageCount != null && (
                         <span className="text-sm text-ink-muted">{documentInfo.pageCount} หน้า</span>
+                    )}
+
+                    {!originalVisible && fileBlobUrl && (
+                        <a
+                            href={fileBlobUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hidden text-sm font-medium text-primary-700 underline lg:inline"
+                        >
+                            เปิดต้นฉบับในแท็บใหม่
+                        </a>
                     )}
                 </div>
 
@@ -265,56 +331,98 @@ function DocumentDetail() {
                     </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
+                <div className={`grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 ${gridColsClass}`}>
                     <div
-                        className={`${activeTab === "original" ? "flex" : "hidden"} min-h-0 flex-col gap-3 rounded-2xl border border-border bg-surface p-4 lg:flex lg:h-full lg:overflow-y-auto`}
+                        className="hidden min-h-0 flex-col items-center justify-center lg:col-start-1 lg:flex lg:h-full"
                     >
-                        {fileLoading && (
-                            <div className="flex items-center gap-2 text-sm text-ink-muted">
-                                <Spinner />
-                                กำลังโหลดไฟล์ต้นฉบับ...
-                            </div>
-                        )}
-
-                        {!fileLoading && fileLoadError && <Alert variant="error">{fileLoadError}</Alert>}
-
-                        {!fileLoading && !fileLoadError && documentInfo.fileType === "pdf" && (
-                            <iframe
-                                key={iframeKey}
-                                src={iframeSrc}
-                                title={`ต้นฉบับ: ${documentInfo.title}`}
-                                className="min-h-[480px] flex-1 rounded-lg border border-border"
-                            />
-                        )}
-
-                        {!fileLoading && !fileLoadError && documentInfo.fileType === "txt" && (
-                            <pre className="min-h-[480px] flex-1 overflow-y-auto rounded-lg border border-border bg-background p-3 text-sm leading-relaxed whitespace-pre-wrap break-words text-ink">
-                                {fileTextContent}
-                            </pre>
-                        )}
-
-                        {!fileLoading &&
-                            !fileLoadError &&
-                            documentInfo.fileType !== "pdf" &&
-                            documentInfo.fileType !== "txt" && (
-                                <Alert variant="warning">ไม่รองรับการแสดงตัวอย่างไฟล์ชนิดนี้</Alert>
-                            )}
-
-                        {fileBlobUrl && (
-                            <a
-                                href={fileBlobUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-medium text-primary-700 underline"
-                            >
-                                เปิดต้นฉบับในแท็บใหม่
-                            </a>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setOriginalVisible((visible) => !visible)}
+                            aria-expanded={originalVisible}
+                            aria-label={originalVisible ? "ซ่อนต้นฉบับ" : "แสดงต้นฉบับ"}
+                            className="flex flex-col items-center gap-1 rounded-md p-2 text-ink-muted/60 transition-colors hover:text-ink-muted focus-visible:text-ink-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+                        >
+                            <ChevronIcon direction={originalVisible ? "left" : "right"} />
+                            <span className="text-center text-xs leading-tight">
+                                {originalVisible ? (
+                                    <>
+                                        ซ่อน
+                                        <br />
+                                        ต้นฉบับ
+                                    </>
+                                ) : (
+                                    <>
+                                        แสดง
+                                        <br />
+                                        ต้นฉบับ
+                                    </>
+                                )}
+                            </span>
+                        </button>
                     </div>
 
                     <div
-                        className={`${activeTab === "summary" ? "flex" : "hidden"} min-h-0 flex-col gap-4 rounded-2xl border border-border bg-surface p-4 lg:flex lg:h-full lg:overflow-y-auto`}
+                        className={`${activeTab === "original" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:col-start-2 lg:h-full ${
+                            originalVisible ? "lg:flex" : "lg:hidden"
+                        }`}
                     >
+                        {fileBlobUrl && (
+                            <div className="flex items-center justify-end border-b border-border px-3 py-1.5">
+                                <a
+                                    href={fileBlobUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-medium text-primary-700 underline"
+                                >
+                                    เปิดต้นฉบับในแท็บใหม่
+                                </a>
+                            </div>
+                        )}
+
+                        <div className="flex min-h-0 flex-1 flex-col p-1">
+                            {fileLoading && (
+                                <div className="flex items-center gap-2 p-3 text-sm text-ink-muted">
+                                    <Spinner />
+                                    กำลังโหลดไฟล์ต้นฉบับ...
+                                </div>
+                            )}
+
+                            {!fileLoading && fileLoadError && (
+                                <div className="p-3">
+                                    <Alert variant="error">{fileLoadError}</Alert>
+                                </div>
+                            )}
+
+                            {!fileLoading && !fileLoadError && documentInfo.fileType === "pdf" && (
+                                <iframe
+                                    key={iframeKey}
+                                    src={iframeSrc}
+                                    title={`ต้นฉบับ: ${documentInfo.title}`}
+                                    className="min-h-[480px] flex-1 rounded-lg border-0"
+                                />
+                            )}
+
+                            {!fileLoading && !fileLoadError && documentInfo.fileType === "txt" && (
+                                <pre className="min-h-[480px] flex-1 overflow-y-auto rounded-lg bg-background p-3 text-sm leading-relaxed whitespace-pre-wrap break-words text-ink">
+                                    {fileTextContent}
+                                </pre>
+                            )}
+
+                            {!fileLoading &&
+                                !fileLoadError &&
+                                documentInfo.fileType !== "pdf" &&
+                                documentInfo.fileType !== "txt" && (
+                                    <div className="p-3">
+                                        <Alert variant="warning">ไม่รองรับการแสดงตัวอย่างไฟล์ชนิดนี้</Alert>
+                                    </div>
+                                )}
+                        </div>
+                    </div>
+
+                    <div
+                        className={`${activeTab === "summary" ? "flex" : "hidden"} min-h-0 flex-col rounded-2xl border border-border bg-surface p-4 lg:flex lg:overflow-y-auto ${summaryColStartClass} ${summaryPaneHeightClass}`}
+                    >
+                      <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
                         {loadingRounds && (
                             <div className="flex items-center gap-2 text-sm text-ink-muted">
                                 <Spinner />
@@ -393,6 +501,7 @@ function DocumentDetail() {
                                 )}
                             </>
                         )}
+                      </div>
                     </div>
                 </div>
             </div>

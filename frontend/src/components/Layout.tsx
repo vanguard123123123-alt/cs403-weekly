@@ -5,9 +5,12 @@ import { APP_NAME } from "../constants/app";
 
 interface LayoutProps {
     children: ReactNode;
+    // Only DocumentDetail uses this (it needs a wider working area for the
+    // original/summary split); every other page keeps the default max-w-5xl.
+    wide?: boolean;
 }
 
-function Layout({ children }: LayoutProps) {
+function Layout({ children, wide = false }: LayoutProps) {
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -39,7 +42,11 @@ function Layout({ children }: LayoutProps) {
                     </nav>
                 </div>
             </header>
-            <main className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6">
+            <main
+                className={`mx-auto flex min-h-0 w-full flex-1 flex-col gap-4 px-4 py-6 sm:px-6 ${
+                    wide ? "max-w-[1500px]" : "max-w-5xl"
+                }`}
+            >
                 {children}
             </main>
         </div>
