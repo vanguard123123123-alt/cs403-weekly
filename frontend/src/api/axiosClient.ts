@@ -12,15 +12,16 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-const AUTH_ENDPOINTS = ["/api/auth/login", "/api/auth/register"];
+// Exact text JwtAuthenticationEntryPoint writes when Spring Security rejects a
+// request for having no/invalid/expired JWT (see backend JwtAuthenticationEntryPoint.java).
+// Other 401s (e.g. InvalidCredentialsException: "Invalid email or password") are not
+// token problems and must not force a redirect.
+const MISSING_OR_INVALID_TOKEN_MESSAGE = "Missing or invalid authentication token";
 
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        const requestUrl: string = error.config?.url ?? "";
-        const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => requestUrl.includes(path));
-
-        if (error.response?.status === 401 && !isAuthEndpoint) {
+        if (error.response?.status === 401 && error.response.data?.message === MISSING_OR_INVALID_TOKEN_MESSAGE) {
             localStorage.removeItem("token");
             window.location.href = "/login";
         }
