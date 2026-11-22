@@ -5,6 +5,7 @@ public class SummarizeRequest {
     private Integer startPage;
     private Integer endPage;
     private String mode;
+    private Integer replaceSummaryId;
 
     public Integer getStartPage() {
         return startPage;
@@ -28,5 +29,13 @@ public class SummarizeRequest {
 
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    public Integer getReplaceSummaryId() {
+        return replaceSummaryId;
+    }
+
+    public void setReplaceSummaryId(Integer replaceSummaryId) {
+        this.replaceSummaryId = replaceSummaryId;
     }
 }

@@ -48,6 +48,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(Map.of("message", ex.getMessage()));
     }
 
+    @ExceptionHandler(SummaryNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleSummaryNotFound(SummaryNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidSummaryLabelException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidSummaryLabel(InvalidSummaryLabelException ex) {
+        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidSummaryReplaceException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidSummaryReplace(InvalidSummaryReplaceException ex) {
+        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    }
+
     @ExceptionHandler(EmptyDocumentException.class)
     public ResponseEntity<Map<String, String>> handleEmptyDocument(EmptyDocumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));

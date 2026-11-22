@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.backend.dto.SummarizeRequest;
 import com.example.backend.dto.SummaryResponse;
@@ -19,6 +20,9 @@ import com.example.backend.exception.EmptyDocumentException;
 import com.example.backend.exception.IncompleteTextException;
 import com.example.backend.exception.InvalidFileTypeException;
 import com.example.backend.exception.InvalidPageRangeException;
+import com.example.backend.exception.InvalidSummaryLabelException;
+import com.example.backend.exception.InvalidSummaryReplaceException;
+import com.example.backend.exception.SummaryNotFoundException;
 import com.example.backend.repository.SummaryRepository;
 import com.example.backend.util.BangkokTime;
 
@@ -30,6 +34,7 @@ public class SummaryService {
     private static final String MODE_TEXT = "text";
     private static final String MODE_VISION = "vision";
     private static final float VISION_RENDER_DPI = 120f;
+    private static final int MAX_LABEL_LENGTH = 100;
 
     private final SummaryRepository summaryRepository;
     private final List<TextExtractor> textExtractors;
@@ -68,8 +73,13 @@ public class SummaryService {
         this.visionDailyLimit = visionDailyLimit;
     }
 
+    @Transactional
     public SummaryResponse summarizeDocument(Integer documentId, User currentUser, SummarizeRequest request) {
         Document document = documentService.getOwnedDocument(documentId, currentUser);
+
+        // Validated up front, before any extraction/OpenAI call: if replaceSummaryId is
+        // present but invalid, fail fast (404/403/400) without spending an OpenAI call.
+        Summary replaceTarget = resolveReplaceTarget(documentId, currentUser, request);
 
         String requestedMode = resolveMode(request);
         Integer startPage = request != null ? request.getStartPage() : null;
@@ -129,11 +139,20 @@ public class SummaryService {
             }
         }
 
+        String label = buildLabel(document, startPage, endPage, replaceTarget);
         Summary summary = new Summary(
-                document, document.getTitle(), contentSum, LocalDateTime.now(),
+                document, label, contentSum, LocalDateTime.now(),
                 truncated, startPage, endPage, actualMode);
 
-        return SummaryResponse.fromEntity(summaryRepository.save(summary));
+        // Saved first; the replaced summary is only removed once the new one has been
+        // written successfully, and both happen in this same @Transactional method so a
+        // failure on either side leaves the old summary untouched.
+        Summary saved = summaryRepository.save(summary);
+        if (replaceTarget != null) {
+            summaryRepository.delete(replaceTarget);
+        }
+
+        return SummaryResponse.fromEntity(saved);
     }
 
     public List<SummaryResponse> getSummariesByDocument(Integer documentId, User currentUser) {
@@ -143,6 +162,77 @@ public class SummaryService {
                 .stream()
                 .map(SummaryResponse::fromEntity)
                 .toList();
+    }
+
+    // Looks up a summary and verifies, via the document's existing ownership check, that it
+    // belongs to currentUser; reused by rename, delete and the replaceSummaryId validation.
+    public Summary getOwnedSummary(Integer summaryId, User currentUser) {
+        Summary summary = summaryRepository.findById(summaryId)
+                .orElseThrow(() -> new SummaryNotFoundException(summaryId));
+
+        documentService.getOwnedDocument(summary.getDocument().getDocumentId(), currentUser);
+
+        return summary;
+    }
+
+    public SummaryResponse renameSummary(Integer summaryId, User currentUser, String rawName) {
+        Summary summary = getOwnedSummary(summaryId, currentUser);
+
+        String trimmed = rawName == null ? "" : rawName.trim();
+        if (trimmed.isEmpty() || trimmed.length() > MAX_LABEL_LENGTH) {
+            throw new InvalidSummaryLabelException(
+                    "name must be between 1 and " + MAX_LABEL_LENGTH + " characters after trimming");
+        }
+
+        summary.setSummaryLabel(trimmed);
+        return SummaryResponse.fromEntity(summaryRepository.save(summary));
+    }
+
+    public void deleteSummary(Integer summaryId, User currentUser) {
+        Summary summary = getOwnedSummary(summaryId, currentUser);
+        summaryRepository.delete(summary);
+    }
+
+    // Enforces 404 (not found) -> 403 (not this user's) -> 400 (right user, wrong document)
+    // in that order, and does so before resolveMode/extraction/OpenAI run.
+    private Summary resolveReplaceTarget(Integer documentId, User currentUser, SummarizeRequest request) {
+        Integer replaceSummaryId = request != null ? request.getReplaceSummaryId() : null;
+        if (replaceSummaryId == null) {
+            return null;
+        }
+
+        Summary target = getOwnedSummary(replaceSummaryId, currentUser);
+        if (!target.getDocument().getDocumentId().equals(documentId)) {
+            throw new InvalidSummaryReplaceException(
+                    "replaceSummaryId " + replaceSummaryId + " does not belong to document " + documentId);
+        }
+
+        return target;
+    }
+
+    // New summary keeps the replaced one's label only if that label was manually changed
+    // (i.e. no longer matches the default the replaced summary would have gotten); otherwise
+    // the new summary gets its own freshly computed default label.
+    private String buildLabel(Document document, Integer startPage, Integer endPage, Summary replaceTarget) {
+        String defaultLabel = buildDefaultLabel(document, startPage, endPage);
+        if (replaceTarget == null) {
+            return defaultLabel;
+        }
+
+        String replacedDefaultLabel =
+                buildDefaultLabel(document, replaceTarget.getStartPage(), replaceTarget.getEndPage());
+        boolean wasRenamed = !replacedDefaultLabel.equals(replaceTarget.getSummaryLabel());
+
+        return wasRenamed ? replaceTarget.getSummaryLabel() : defaultLabel;
+    }
+
+    private String buildDefaultLabel(Document document, Integer startPage, Integer endPage) {
+        String rangePart = (startPage != null && endPage != null)
+                ? "หน้า " + startPage + "-" + endPage
+                : "ทั้งไฟล์";
+        String label = document.getTitle() + " · " + rangePart;
+
+        return label.length() > MAX_LABEL_LENGTH ? label.substring(0, MAX_LABEL_LENGTH) : label;
     }
 
     private String runVisionSummarization(Document document, Integer startPage, Integer endPage) {
