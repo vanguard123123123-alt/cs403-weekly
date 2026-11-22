@@ -7,7 +7,7 @@ import "katex/dist/katex.min.css";
 import api from "../api/axiosClient";
 import { getErrorMessage } from "../api/errorMessage";
 import { coveredPagesForSummaries } from "../utils/pageRangeMerger";
-import { formatDateTime, pageRangeLabel } from "../utils/roundFormatting";
+import { formatDateTime, pageRangeLabel, summaryDisplayLabel } from "../utils/roundFormatting";
 import Layout from "../components/Layout";
 import Card from "../components/Card";
 import Button from "../components/Button";
@@ -42,7 +42,7 @@ interface DashboardData {
 interface SummaryItem {
     summaryId: number;
     documentId: number;
-    summaryLabel: string;
+    summaryLabel: string | null;
     contentSum: string;
     createdAt: string;
     truncated: boolean;
@@ -291,7 +291,7 @@ function Dashboard() {
                             <Card className="flex flex-col gap-4">
                                 <h2 className="text-base font-semibold text-ink">{selectedDocument.title}</h2>
                                 <div className="flex flex-wrap gap-4 text-sm text-ink-muted">
-                                    <span>จำนวนรอบ: {selectedDocument.summaryCount}</span>
+                                    <span>จำนวนสรุป: {selectedDocument.summaryCount}</span>
                                     {selectedDocument.coveredPages != null && selectedDocument.pageCount != null && (
                                         <span>
                                             หน้าที่สรุปแล้ว {selectedDocument.coveredPages}/{selectedDocument.pageCount}
@@ -343,8 +343,13 @@ function Dashboard() {
                                                         checked={selectedRoundIds.has(round.summaryId)}
                                                         onChange={() => toggleRoundSelected(round.summaryId)}
                                                     />
-                                                    <span className="flex flex-wrap items-center gap-1.5 text-ink">
-                                                        <span className="font-medium">รอบที่ {round.roundNumber}</span>
+                                                    <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-ink">
+                                                        <span
+                                                            className="min-w-0 max-w-full truncate font-medium"
+                                                            title={summaryDisplayLabel(round, selectedDocument.title)}
+                                                        >
+                                                            {summaryDisplayLabel(round, selectedDocument.title)}
+                                                        </span>
                                                         <span className="text-ink-muted">·</span>
                                                         <span>{pageRangeLabel(round)}</span>
                                                         <span className="text-ink-muted">·</span>
@@ -366,7 +371,7 @@ function Dashboard() {
                                 <Card className="flex flex-col gap-4">
                                     <h2 className="text-base font-semibold text-ink">ภาพรวมที่เลือก</h2>
                                     <div className="flex flex-wrap gap-4 text-sm text-ink-muted">
-                                        <span>จำนวนรอบที่เลือก: {selectedRounds.length}</span>
+                                        <span>จำนวนสรุปที่เลือก: {selectedRounds.length}</span>
                                         {selectedOverviewCoveredPages != null && (
                                             <span>หน้ารวม (ไม่ซ้ำ): {selectedOverviewCoveredPages} หน้า</span>
                                         )}
@@ -388,10 +393,15 @@ function Dashboard() {
                                                         <button
                                                             type="button"
                                                             onClick={() => toggleRoundExpanded(round.summaryId)}
-                                                            className="flex flex-1 flex-wrap items-center gap-1.5 text-left text-sm font-medium text-ink"
+                                                            className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-left text-sm font-medium text-ink"
                                                         >
                                                             <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-                                                            <span>รอบที่ {round.roundNumber}</span>
+                                                            <span
+                                                                className="min-w-0 max-w-full truncate"
+                                                                title={summaryDisplayLabel(round, selectedDocument.title)}
+                                                            >
+                                                                {summaryDisplayLabel(round, selectedDocument.title)}
+                                                            </span>
                                                             <span className="text-ink-muted">·</span>
                                                             <span className="text-ink-muted">{pageRangeLabel(round)}</span>
                                                             <span className="text-ink-muted">·</span>

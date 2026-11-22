@@ -6,6 +6,15 @@ import Alert from "./Alert";
 import Spinner from "./Spinner";
 import type { DocumentCardItem } from "./DocumentCard";
 
+// A previous summary being re-run over (optionally) the same range, so the
+// form can pre-fill from it and offer to replace it on success.
+interface ReplaceTarget {
+    summaryId: number;
+    startPage: number | null;
+    endPage: number | null;
+    mode: string | null;
+}
+
 interface SummarizeFormProps {
     document: DocumentCardItem;
     onSummarized: (documentId: number) => void;
@@ -14,16 +23,23 @@ interface SummarizeFormProps {
     onCancel?: () => void;
     // Lets a parent (e.g. a Modal) know when it's not safe to be dismissed.
     onSubmittingChange?: (submitting: boolean) => void;
+    // "สรุปใหม่ช่วงนี้": pre-fills the page range/mode from this summary and shows a
+    // "replace it on success" checkbox wired to replaceSummaryId. Omitted entirely
+    // for a plain new summary (SummarizeModal, DocumentDetail's "สรุปเพิ่ม"), so
+    // those never send replaceSummaryId.
+    replaceTarget?: ReplaceTarget;
 }
 
 // The actual summarize form: page-range inputs, vision-mode toggle, and the
 // submit button with its validation/error handling. Shared by SummarizeModal
-// (wraps this in a Modal) and DocumentDetail (renders this inline) so the
-// behavior never has to be written twice.
-function SummarizeForm({ document, onSummarized, onCancel, onSubmittingChange }: SummarizeFormProps) {
-    const [start, setStart] = useState("");
-    const [end, setEnd] = useState("");
-    const [vision, setVision] = useState(false);
+// (wraps this in a Modal) and DocumentDetail (renders this inline, both for a
+// plain new summary and for "สรุปใหม่ช่วงนี้" via replaceTarget) so the behavior
+// never has to be written twice.
+function SummarizeForm({ document, onSummarized, onCancel, onSubmittingChange, replaceTarget }: SummarizeFormProps) {
+    const [start, setStart] = useState(replaceTarget?.startPage != null ? String(replaceTarget.startPage) : "");
+    const [end, setEnd] = useState(replaceTarget?.endPage != null ? String(replaceTarget.endPage) : "");
+    const [vision, setVision] = useState(replaceTarget?.mode === "vision");
+    const [replaceOld, setReplaceOld] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [incompleteText, setIncompleteText] = useState(false);
@@ -44,7 +60,7 @@ function SummarizeForm({ document, onSummarized, onCancel, onSubmittingChange }:
             return;
         }
 
-        let body: { startPage?: number; endPage?: number; mode?: string } | undefined;
+        let body: { startPage?: number; endPage?: number; mode?: string; replaceSummaryId?: number } | undefined;
 
         if (startRaw || endRaw) {
             if (!startRaw || !endRaw) {
@@ -75,6 +91,10 @@ function SummarizeForm({ document, onSummarized, onCancel, onSubmittingChange }:
 
         if (vision) {
             body = { ...(body ?? {}), mode: "vision" };
+        }
+
+        if (replaceTarget && replaceOld) {
+            body = { ...(body ?? {}), replaceSummaryId: replaceTarget.summaryId };
         }
 
         setSubmittingState(true);
@@ -139,6 +159,19 @@ function SummarizeForm({ document, onSummarized, onCancel, onSubmittingChange }:
                         </Alert>
                     )}
                 </>
+            )}
+
+            {replaceTarget && (
+                <label className="flex items-start gap-2 text-sm text-ink">
+                    <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={replaceOld}
+                        disabled={submitting}
+                        onChange={(e) => setReplaceOld(e.target.checked)}
+                    />
+                    แทนที่สรุปเดิม (ลบอันเดิมเมื่อสรุปใหม่สำเร็จ)
+                </label>
             )}
 
             {errorMessage && (

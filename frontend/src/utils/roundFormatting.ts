@@ -13,3 +13,15 @@ export function pageRangeLabel(round: PageRangeLike): string {
 export function formatDateTime(value: string): string {
     return new Date(value).toLocaleString("th-TH");
 }
+
+interface SummaryLabelLike extends PageRangeLike {
+    summaryLabel?: string | null;
+}
+
+// The name shown for a summary: its summaryLabel when set, otherwise the same
+// fallback the backend uses as the default label ('{title} · หน้า a-b' or
+// '{title} · ทั้งไฟล์'), so a round never shows up nameless.
+export function summaryDisplayLabel(round: SummaryLabelLike, documentTitle: string): string {
+    const trimmed = round.summaryLabel?.trim();
+    return trimmed ? trimmed : `${documentTitle} · ${pageRangeLabel(round)}`;
+}

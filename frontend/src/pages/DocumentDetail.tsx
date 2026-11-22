@@ -5,8 +5,8 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import api from "../api/axiosClient";
-import { getErrorMessage } from "../api/errorMessage";
-import { formatDateTime, pageRangeLabel } from "../utils/roundFormatting";
+import { getErrorMessage, getErrorStatus } from "../api/errorMessage";
+import { formatDateTime, pageRangeLabel, summaryDisplayLabel } from "../utils/roundFormatting";
 import Layout from "../components/Layout";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -28,7 +28,7 @@ interface DocumentInfo {
 interface SummaryItem {
     summaryId: number;
     documentId: number;
-    summaryLabel: string;
+    summaryLabel: string | null;
     contentSum: string;
     createdAt: string;
     truncated: boolean;
@@ -74,6 +74,23 @@ function ChevronIcon({ direction }: { direction: "left" | "right" }) {
     );
 }
 
+function PencilIcon() {
+    return (
+        <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+            aria-hidden="true"
+        >
+            <path d="M13.5 3.5l3 3L7 16H4v-3L13.5 3.5z" />
+        </svg>
+    );
+}
+
 function DocumentDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -96,6 +113,14 @@ function DocumentDetail() {
 
     const [activeTab, setActiveTab] = useState<Tab>("summary");
     const [originalVisible, setOriginalVisible] = useState<boolean>(readStoredOriginalVisible);
+
+    const [editingLabel, setEditingLabel] = useState(false);
+    const [labelInput, setLabelInput] = useState("");
+    const [labelError, setLabelError] = useState<string | null>(null);
+    const [savingLabel, setSavingLabel] = useState(false);
+    const [showReplaceForm, setShowReplaceForm] = useState(false);
+    const [deletingSummary, setDeletingSummary] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     useEffect(() => {
         try {
@@ -230,6 +255,77 @@ function DocumentDetail() {
             setSelectedSummaryId(updated[updated.length - 1].summaryId);
         }
         setShowSummarizeForm(false);
+        setShowReplaceForm(false);
+    };
+
+    // Switching rounds abandons any in-progress rename/replace for the previous one.
+    useEffect(() => {
+        setEditingLabel(false);
+        setLabelError(null);
+        setShowReplaceForm(false);
+        setDeleteError(null);
+    }, [selectedSummaryId]);
+
+    const startEditingLabel = (round: Round) => {
+        setLabelInput(summaryDisplayLabel(round, documentInfo?.title ?? ""));
+        setLabelError(null);
+        setEditingLabel(true);
+    };
+
+    const cancelEditingLabel = () => {
+        setEditingLabel(false);
+        setLabelError(null);
+    };
+
+    const saveLabel = async (round: Round) => {
+        const trimmed = labelInput.trim();
+        if (trimmed.length < 1 || trimmed.length > 100) {
+            setLabelError("ชื่อต้องมีความยาว 1-100 ตัวอักษร");
+            return;
+        }
+
+        setSavingLabel(true);
+        setLabelError(null);
+        try {
+            const response = await api.patch<SummaryItem>(`/api/summaries/${round.summaryId}`, { name: trimmed });
+            setRounds((prev) =>
+                prev.map((r) => (r.summaryId === round.summaryId ? { ...r, summaryLabel: response.data.summaryLabel } : r))
+            );
+            setEditingLabel(false);
+        } catch (error) {
+            setLabelError(getErrorMessage(error, "เปลี่ยนชื่อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
+        } finally {
+            setSavingLabel(false);
+        }
+    };
+
+    const handleDeleteSelected = async (round: Round) => {
+        if (!documentInfo) {
+            return;
+        }
+
+        const confirmed = window.confirm("ต้องการลบสรุปนี้ใช่หรือไม่?");
+        if (!confirmed) {
+            return;
+        }
+
+        setDeletingSummary(true);
+        setDeleteError(null);
+
+        try {
+            await api.delete(`/api/summaries/${round.summaryId}`);
+        } catch (error) {
+            if (getErrorStatus(error) !== 404) {
+                setDeleteError(getErrorMessage(error, "ลบสรุปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
+                setDeletingSummary(false);
+                return;
+            }
+            // 404: someone/something already deleted it — just refresh quietly below.
+        }
+
+        const updated = await fetchRounds(documentInfo.documentId);
+        setSelectedSummaryId(updated.length > 0 ? updated[updated.length - 1].summaryId : null);
+        setDeletingSummary(false);
     };
 
     if (loading) {
@@ -451,13 +547,16 @@ function DocumentDetail() {
                                             key={round.summaryId}
                                             type="button"
                                             onClick={() => setSelectedSummaryId(round.summaryId)}
-                                            className={`flex-shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                                            title={summaryDisplayLabel(round, documentInfo.title)}
+                                            className={`max-w-[220px] flex-shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                                                 round.summaryId === selectedSummaryId
                                                     ? "border-primary-600 bg-primary-50 text-primary-700"
                                                     : "border-border bg-surface text-ink-muted hover:bg-background"
                                             }`}
                                         >
-                                            รอบที่ {round.roundNumber}
+                                            <span className="block truncate">
+                                                {summaryDisplayLabel(round, documentInfo.title)}
+                                            </span>
                                         </button>
                                     ))}
                                 </div>
@@ -477,11 +576,70 @@ function DocumentDetail() {
 
                                 {selectedRound && (
                                     <div className="flex flex-col gap-2">
+                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                                                {editingLabel ? (
+                                                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={labelInput}
+                                                            disabled={savingLabel}
+                                                            onChange={(e) => setLabelInput(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter") {
+                                                                    e.preventDefault();
+                                                                    saveLabel(selectedRound);
+                                                                } else if (e.key === "Escape") {
+                                                                    e.preventDefault();
+                                                                    cancelEditingLabel();
+                                                                }
+                                                            }}
+                                                            autoFocus
+                                                            className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-base font-semibold text-ink"
+                                                        />
+                                                        <Button onClick={() => saveLabel(selectedRound)} disabled={savingLabel}>
+                                                            บันทึก
+                                                        </Button>
+                                                        <Button
+                                                            variant="secondary"
+                                                            disabled={savingLabel}
+                                                            onClick={cancelEditingLabel}
+                                                        >
+                                                            ยกเลิก
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <h2 className="line-clamp-1 min-w-0 flex-1 text-base font-semibold text-ink">
+                                                            {summaryDisplayLabel(selectedRound, documentInfo.title)}
+                                                        </h2>
+                                                        <button
+                                                            type="button"
+                                                            aria-label="แก้ไขชื่อสรุป"
+                                                            onClick={() => startEditingLabel(selectedRound)}
+                                                            className="flex-shrink-0 rounded-md p-1 text-ink-muted transition-colors hover:bg-background hover:text-ink"
+                                                        >
+                                                            <PencilIcon />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteSelected(selectedRound)}
+                                                disabled={deletingSummary}
+                                                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-danger-200 bg-danger-50 px-2.5 py-1 text-xs font-medium text-danger-700 transition-colors hover:bg-danger-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                {deletingSummary && <Spinner />}
+                                                ลบสรุปนี้
+                                            </button>
+                                        </div>
+
+                                        {labelError && <Alert variant="error">{labelError}</Alert>}
+                                        {deleteError && <Alert variant="error">{deleteError}</Alert>}
+
                                         <div className="flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
-                                            <span className="font-medium text-ink">
-                                                รอบที่ {selectedRound.roundNumber}
-                                            </span>
-                                            <span>·</span>
                                             <span>{pageRangeLabel(selectedRound)}</span>
                                             <span>·</span>
                                             <span>{formatDateTime(selectedRound.createdAt)}</span>
@@ -489,6 +647,26 @@ function DocumentDetail() {
                                                 <Badge variant="warning">อ่านแบบภาพ</Badge>
                                             )}
                                         </div>
+
+                                        {!showReplaceForm ? (
+                                            <Button variant="secondary" onClick={() => setShowReplaceForm(true)}>
+                                                สรุปใหม่ช่วงนี้
+                                            </Button>
+                                        ) : (
+                                            <SummarizeForm
+                                                key={`replace-${selectedRound.summaryId}`}
+                                                document={documentInfo}
+                                                replaceTarget={{
+                                                    summaryId: selectedRound.summaryId,
+                                                    startPage: selectedRound.startPage,
+                                                    endPage: selectedRound.endPage,
+                                                    mode: selectedRound.mode,
+                                                }}
+                                                onCancel={() => setShowReplaceForm(false)}
+                                                onSummarized={handleSummarized}
+                                            />
+                                        )}
+
                                         <div className="markdown-summary">
                                             <ReactMarkdown
                                                 remarkPlugins={[remarkMath]}
