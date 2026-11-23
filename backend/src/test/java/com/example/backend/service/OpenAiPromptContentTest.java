@@ -22,6 +22,10 @@ class OpenAiPromptContentTest {
         assertTrue(prompt.contains("ห้ามตัดหัวข้อ"), "must forbid dropping numbered topics to save length");
         assertTrue(prompt.contains("ตรวจสอบตัวเอง"), "must instruct the model to self-check before answering");
         assertFalse(prompt.contains("ส่วนที่ผู้เรียนจด/เน้นไว้"), "the handwriting/highlight section is vision-only");
+        assertTrue(prompt.contains("ห้ามคัดลอก"), "must forbid copying the original text verbatim");
+        assertTrue(prompt.contains("2-3 ตัวอย่าง"), "must instruct picking only 2-3 representative examples");
+        assertTrue(prompt.contains("ห้ามตั้งเลขหัวข้อใหม่"), "must forbid inventing new topic numbers");
+        assertTrue(prompt.contains("เก็บนิยามและทฤษฎีบทให้ครบ"), "must require keeping all definitions and theorems");
     }
 
     @Test
@@ -38,5 +42,9 @@ class OpenAiPromptContentTest {
         assertTrue(prompt.contains("ส่วนที่ผู้เรียนจด/เน้นไว้"), "vision mode must keep the handwriting/highlight section");
         assertTrue(prompt.contains("ให้บอกตรง ๆ ว่าส่วนนั้นอ่านไม่ออก"),
                 "must keep the existing instruction to say plainly when part of the image can't be read");
+        assertTrue(prompt.contains("ห้ามคัดลอก"), "must forbid copying the original text verbatim");
+        assertTrue(prompt.contains("2-3 ตัวอย่าง"), "must instruct picking only 2-3 representative examples");
+        assertTrue(prompt.contains("ห้ามตั้งเลขหัวข้อใหม่"), "must forbid inventing new topic numbers");
+        assertTrue(prompt.contains("เก็บนิยามและทฤษฎีบทให้ครบ"), "must require keeping all definitions and theorems");
     }
 }
