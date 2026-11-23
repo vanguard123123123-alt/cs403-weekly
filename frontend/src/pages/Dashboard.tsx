@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import api from "../api/axiosClient";
-import { getErrorMessage } from "../api/errorMessage";
+import { getErrorMessage, getErrorStatus } from "../api/errorMessage";
 import { coveredPagesForSummaries, uncoveredPageRanges } from "../utils/pageRangeMerger";
 import { formatDateTime, pageRangeLabel, summaryDisplayLabel, uncoveredPagesLabel } from "../utils/roundFormatting";
+import { overviewCacheKey } from "../utils/overviewCacheKey";
 import Layout from "../components/Layout";
 import Card from "../components/Card";
 import Button from "../components/Button";
@@ -101,6 +102,43 @@ function copyWithFallbackTextarea(text: string) {
     }
 }
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            copyWithFallbackTextarea(text);
+        }
+        return true;
+    } catch {
+        try {
+            copyWithFallbackTextarea(text);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+interface OverviewResult {
+    overviewMarkdown: string;
+    practiceTopics: string[];
+}
+
+// The AI's overviewMarkdown/practiceTopics already have URLs stripped server-side,
+// but this is a second, defensive layer: links are never rendered as clickable here
+// regardless of what the model returns, so AI-controlled content can never produce
+// an actual <a href> in the page.
+function PlainTextLink({ children }: { children?: ReactNode }) {
+    return <>{children}</>;
+}
+
+const overviewMarkdownComponents = { a: PlainTextLink };
+
+// Mirrors the backend's summary.overview-max-items default (12) so the button can
+// be disabled before ever making the request, instead of letting it fail with 400.
+const MAX_OVERVIEW_SUMMARIES = 12;
+
 function pickDefaultDocument(documents: DashboardDocumentItem[]): DashboardDocumentItem | null {
     const mostRecentlySummarized = [...documents]
         .filter((doc) => doc.lastSummaryAt != null)
@@ -129,6 +167,19 @@ function Dashboard() {
     const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
     const copyStatusTimeoutRef = useRef<number | null>(null);
 
+    // AI overview ("ภาพรวมโดย AI"): cache lives in a ref (not state) so writing to it
+    // never itself triggers a render; aiOverviewCacheVersion is bumped after every
+    // write purely to force a re-render so the cache.get() read below picks it up.
+    const aiOverviewCacheRef = useRef<Map<string, OverviewResult>>(new Map());
+    const [aiOverviewCacheVersion, setAiOverviewCacheVersion] = useState(0);
+    const [aiOverviewLoading, setAiOverviewLoading] = useState(false);
+    const [aiOverviewError, setAiOverviewError] = useState<{ key: string; message: string } | null>(null);
+    const [aiOverviewCopyStatus, setAiOverviewCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+    const aiOverviewCopyTimeoutRef = useRef<number | null>(null);
+    // Holds the live selectedRoundIds so an in-flight request can tell, once it
+    // resolves, whether the user is still looking at the set it was asked for.
+    const selectedRoundIdsRef = useRef<Set<number>>(new Set());
+
     const [summarizeTarget, setSummarizeTarget] = useState<DocumentCardItem | null>(null);
 
     useEffect(() => {
@@ -136,8 +187,20 @@ function Dashboard() {
             if (copyStatusTimeoutRef.current != null) {
                 window.clearTimeout(copyStatusTimeoutRef.current);
             }
+            if (aiOverviewCopyTimeoutRef.current != null) {
+                window.clearTimeout(aiOverviewCopyTimeoutRef.current);
+            }
         };
     }, []);
+
+    // A fresh document means a fresh set of summaries, so any cached overview (keyed
+    // only by summary id, not document id) would be meaningless for the new one.
+    useEffect(() => {
+        aiOverviewCacheRef.current.clear();
+        setAiOverviewCacheVersion((v) => v + 1);
+        setAiOverviewError(null);
+        setAiOverviewLoading(false);
+    }, [selectedDocumentId]);
 
     const loadDashboard = useCallback(async () => {
         try {
@@ -194,6 +257,10 @@ function Dashboard() {
             setRounds([]);
         }
     }, [selectedDocumentId, fetchRounds]);
+
+    useEffect(() => {
+        selectedRoundIdsRef.current = selectedRoundIds;
+    }, [selectedRoundIds]);
 
     const toggleRoundSelected = (summaryId: number) => {
         setSelectedRoundIds((prev) => {
@@ -252,6 +319,56 @@ function Dashboard() {
         copyStatusTimeoutRef.current = window.setTimeout(() => setCopyStatus("idle"), 2000);
     };
 
+    // Shared by the first "สร้างภาพรวม" and the later "สร้างใหม่": both just ask the
+    // AI to write an overview for whatever is ticked right now and cache it under
+    // that set's key. Never called automatically from a tick change, only on click.
+    const handleGenerateOverview = async (documentId: number, summaryIds: number[]) => {
+        if (aiOverviewLoading) {
+            return;
+        }
+        const key = overviewCacheKey(summaryIds);
+        setAiOverviewLoading(true);
+        setAiOverviewError(null);
+
+        try {
+            const response = await api.post<OverviewResult>(`/api/documents/${documentId}/overview`, {
+                summaryIds,
+            });
+            // Always cached under the request's own key, even if the user has since
+            // ticked a different set — see the module comment on selectedRoundIdsRef.
+            aiOverviewCacheRef.current.set(key, response.data);
+            setAiOverviewCacheVersion((v) => v + 1);
+        } catch (error) {
+            const currentKey = overviewCacheKey(Array.from(selectedRoundIdsRef.current));
+            // Only surface the error if the user is still looking at the set that
+            // failed; otherwise it would be shown next to an unrelated selection.
+            if (currentKey === key) {
+                const status = getErrorStatus(error);
+                let message: string;
+                if (status === 429) {
+                    message = "ใช้โควต้าภาพรวมของวันนี้ครบแล้ว ลองใหม่ได้พรุ่งนี้";
+                } else if (status === 400) {
+                    message = "เลือกสรุปมากเกินไปหรือเนื้อหารวมยาวเกินไป ลองเลือกให้น้อยลง";
+                } else {
+                    // Covers both 502 (AI response failures) and network errors.
+                    message = getErrorMessage(error, "สร้างภาพรวมไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                }
+                setAiOverviewError({ key, message });
+            }
+        } finally {
+            setAiOverviewLoading(false);
+        }
+    };
+
+    const handleCopyOverview = async (markdown: string) => {
+        const succeeded = await copyTextToClipboard(markdown);
+        setAiOverviewCopyStatus(succeeded ? "copied" : "error");
+        if (aiOverviewCopyTimeoutRef.current != null) {
+            window.clearTimeout(aiOverviewCopyTimeoutRef.current);
+        }
+        aiOverviewCopyTimeoutRef.current = window.setTimeout(() => setAiOverviewCopyStatus("idle"), 2000);
+    };
+
     const handleSummarized = async (documentId: number) => {
         setSummarizeTarget(null);
         await loadDashboard();
@@ -307,6 +424,13 @@ function Dashboard() {
         : null;
 
     const sortedSelectedRounds = sortRoundsForCombinedView(selectedRounds);
+
+    // Re-read on every render (including the version bump after a cache write) so
+    // ticking back to an already-generated set shows its result immediately, with
+    // no API call. aiOverviewCacheVersion itself is only a render trigger here.
+    void aiOverviewCacheVersion;
+    const currentOverviewKey = overviewCacheKey(selectedRounds.map((round) => round.summaryId));
+    const cachedOverview = aiOverviewCacheRef.current.get(currentOverviewKey) ?? null;
     const combinedEffectiveRanges = selectedDocument
         ? selectedRounds
               .map((round) => effectivePageRange(round, selectedDocument.pageCount))
@@ -498,6 +622,7 @@ function Dashboard() {
                             </Card>
 
                             {selectedRounds.length > 0 && (
+                                <>
                                 <Card className="flex flex-col gap-4">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <h2 className="text-base font-semibold text-ink">ภาพรวมที่เลือก</h2>
@@ -645,6 +770,116 @@ function Dashboard() {
                                         </div>
                                     )}
                                 </Card>
+
+                                <Card className="flex flex-col gap-4">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <h2 className="text-base font-semibold text-ink">ภาพรวมโดย AI</h2>
+                                        <span className="text-sm text-ink-muted">
+                                            เลือกแล้ว {selectedRounds.length} สรุป
+                                        </span>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <Button
+                                            variant={cachedOverview ? "secondary" : "primary"}
+                                            disabled={
+                                                aiOverviewLoading || selectedRounds.length > MAX_OVERVIEW_SUMMARIES
+                                            }
+                                            onClick={() =>
+                                                handleGenerateOverview(
+                                                    selectedDocument.documentId,
+                                                    selectedRounds.map((round) => round.summaryId)
+                                                )
+                                            }
+                                        >
+                                            {cachedOverview ? "สร้างใหม่" : "สร้างภาพรวม"}
+                                        </Button>
+                                        {selectedRounds.length > MAX_OVERVIEW_SUMMARIES ? (
+                                            <span className="text-xs text-danger-700">
+                                                เลือกได้สูงสุด 12 สรุปต่อภาพรวม
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-ink-muted">
+                                                นับเป็นโควต้าภาพรวมของวัน
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {aiOverviewLoading && (
+                                        <div className="flex items-center gap-2 text-sm text-ink-muted">
+                                            <Spinner />
+                                            กำลังเขียนภาพรวม อาจใช้เวลาถึง 30 วินาที
+                                        </div>
+                                    )}
+
+                                    {aiOverviewError && aiOverviewError.key === currentOverviewKey && (
+                                        <Alert variant="error">{aiOverviewError.message}</Alert>
+                                    )}
+
+                                    {cachedOverview && (
+                                        <div className="flex flex-col gap-4">
+                                            <Alert variant="warning">
+                                                สร้างโดย AI จากสรุปที่เลือก อาจคลาดเคลื่อน ควรตรวจกับสรุปต้นฉบับ
+                                            </Alert>
+
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={() => handleCopyOverview(cachedOverview.overviewMarkdown)}
+                                                >
+                                                    {aiOverviewCopyStatus === "copied"
+                                                        ? "คัดลอกแล้ว"
+                                                        : "คัดลอกภาพรวม"}
+                                                </Button>
+                                            </div>
+
+                                            {aiOverviewCopyStatus === "error" && (
+                                                <Alert variant="error">คัดลอกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</Alert>
+                                            )}
+
+                                            <div className="markdown-summary mx-auto w-full max-w-[700px] min-w-0">
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkMath]}
+                                                    rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
+                                                    components={overviewMarkdownComponents}
+                                                >
+                                                    {cachedOverview.overviewMarkdown}
+                                                </ReactMarkdown>
+                                            </div>
+
+                                            {cachedOverview.practiceTopics.length > 0 && (
+                                                <div className="mx-auto flex w-full max-w-[700px] min-w-0 flex-col gap-2">
+                                                    <h3 className="text-sm font-semibold text-ink">
+                                                        หัวข้อที่ควรฝึกเพิ่ม
+                                                    </h3>
+                                                    <ul className="flex flex-col gap-1.5 text-sm">
+                                                        {cachedOverview.practiceTopics.map((topic, index) => (
+                                                            <li
+                                                                key={index}
+                                                                className="flex flex-wrap items-center gap-x-2 gap-y-1"
+                                                            >
+                                                                <span className="min-w-0 break-words text-ink">
+                                                                    {topic}
+                                                                </span>
+                                                                <a
+                                                                    href={`https://www.google.com/search?q=${encodeURIComponent(
+                                                                        `${selectedDocument.title} ${topic} แบบฝึกหัด`
+                                                                    )}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="shrink-0 text-primary-700 underline"
+                                                                >
+                                                                    ค้นหาแบบฝึกหัด
+                                                                </a>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </Card>
+                                </>
                             )}
                         </>
                     )}
