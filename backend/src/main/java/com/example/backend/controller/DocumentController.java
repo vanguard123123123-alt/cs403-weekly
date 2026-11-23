@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.backend.dto.DocumentResponse;
+import com.example.backend.dto.OverviewRequest;
+import com.example.backend.dto.OverviewResponse;
 import com.example.backend.dto.SummarizeRequest;
 import com.example.backend.dto.SummaryResponse;
 import com.example.backend.entity.User;
@@ -25,6 +27,7 @@ import com.example.backend.exception.InvalidCredentialsException;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.DocumentService;
 import com.example.backend.service.DocumentService.DocumentFile;
+import com.example.backend.service.OverviewService;
 import com.example.backend.service.SummaryService;
 
 @RestController
@@ -33,14 +36,17 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final SummaryService summaryService;
+    private final OverviewService overviewService;
     private final UserRepository userRepository;
 
     public DocumentController(
             DocumentService documentService,
             SummaryService summaryService,
+            OverviewService overviewService,
             UserRepository userRepository) {
         this.documentService = documentService;
         this.summaryService = summaryService;
+        this.overviewService = overviewService;
         this.userRepository = userRepository;
     }
 
@@ -82,6 +88,18 @@ public ResponseEntity<List<SummaryResponse>> getSummaries(@PathVariable Integer 
 
     return ResponseEntity.ok(summaryService.getSummariesByDocument(id, user));
 }
+
+    @PostMapping("/{id}/overview")
+    public ResponseEntity<OverviewResponse> overview(
+            @PathVariable Integer id,
+            @RequestBody(required = false) OverviewRequest request,
+            Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(InvalidCredentialsException::new);
+
+        OverviewResponse response = overviewService.generateOverview(id, user, request);
+        return ResponseEntity.ok(response);
+    }
 
     @GetMapping("/{id}/file")
     public ResponseEntity<Resource> getFile(@PathVariable Integer id, Authentication authentication) {

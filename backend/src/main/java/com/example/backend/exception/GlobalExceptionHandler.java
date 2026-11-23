@@ -93,6 +93,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
     }
 
+    @ExceptionHandler(InvalidOverviewRequestException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidOverviewRequest(InvalidOverviewRequestException ex) {
+        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(OverviewDailyLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleOverviewDailyLimit(OverviewDailyLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(OverviewGenerationException.class)
+    public ResponseEntity<Map<String, String>> handleOverviewGeneration(OverviewGenerationException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", ex.getMessage()));
+    }
+
     @ExceptionHandler(IncompleteTextException.class)
     public ResponseEntity<Map<String, String>> handleIncompleteText(IncompleteTextException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(Map.of("message", ex.getMessage()));

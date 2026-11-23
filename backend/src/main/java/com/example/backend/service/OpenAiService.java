@@ -110,7 +110,21 @@ public class OpenAiService {
         return content != null && content.trim().startsWith(INCOMPLETE_TEXT_MARKER);
     }
 
-    private String call(ChatCompletionRequest request) {
+    // Used for the /overview feature: forces the model to reply with a single JSON
+    // object (via response_format) instead of free-form Markdown, so the caller can
+    // parse {overviewMarkdown, practiceTopics} out of the returned content string.
+    public String generateOverview(String systemPrompt, String userPrompt) {
+        OverviewChatCompletionRequest request = new OverviewChatCompletionRequest(
+                model,
+                List.of(
+                        new ChatMessage("system", systemPrompt),
+                        new ChatMessage("user", userPrompt)),
+                new ResponseFormat("json_object"));
+
+        return call(request);
+    }
+
+    private String call(Object request) {
         try {
             ChatCompletionResponse response = restClient.post()
                     .uri(CHAT_COMPLETIONS_URL)
@@ -130,6 +144,15 @@ public class OpenAiService {
     }
 
     private record ChatCompletionRequest(String model, List<ChatMessage> messages) {
+    }
+
+    private record OverviewChatCompletionRequest(
+            String model,
+            List<ChatMessage> messages,
+            @JsonProperty("response_format") ResponseFormat responseFormat) {
+    }
+
+    private record ResponseFormat(String type) {
     }
 
     private record ChatMessage(String role, Object content) {

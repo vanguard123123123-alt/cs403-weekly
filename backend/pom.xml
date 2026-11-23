@@ -47,6 +47,14 @@
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
+		<!-- Only pulled in transitively (runtime scope) via jjwt-jackson before this; added
+		     explicitly at compile scope so OverviewService can parse the AI's JSON response
+		     without hand-rolling a JSON parser. Version is managed by spring-boot-starter-parent. -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
