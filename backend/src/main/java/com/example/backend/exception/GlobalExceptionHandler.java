@@ -98,6 +98,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(Map.of("message", ex.getMessage()));
     }
 
+    // Deliberately 502, not 422: the frontend shows the "switch to vision mode" shortcut for
+    // every 422, which would not make sense for an output that simply got cut off mid-generation.
+    @ExceptionHandler(SummaryTruncatedException.class)
+    public ResponseEntity<Map<String, String>> handleSummaryTruncated(SummaryTruncatedException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();

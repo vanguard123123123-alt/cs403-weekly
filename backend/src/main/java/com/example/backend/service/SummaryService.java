@@ -23,6 +23,7 @@ import com.example.backend.exception.InvalidPageRangeException;
 import com.example.backend.exception.InvalidSummaryLabelException;
 import com.example.backend.exception.InvalidSummaryReplaceException;
 import com.example.backend.exception.SummaryNotFoundException;
+import com.example.backend.exception.SummaryTruncatedException;
 import com.example.backend.repository.SummaryRepository;
 import com.example.backend.util.BangkokTime;
 
@@ -92,7 +93,9 @@ public class SummaryService {
         if (MODE_VISION.equals(requestedMode)) {
             enforceVisionDailyLimit(currentUser);
             document = validateVisionRange(document, startPage, endPage);
-            contentSum = runVisionSummarization(document, startPage, endPage);
+            OpenAiService.CompletionResult result = runVisionSummarization(document, startPage, endPage);
+            rejectIfTruncated(result);
+            contentSum = result.content();
             actualMode = MODE_VISION;
         } else {
             enforceDailyLimit(currentUser);
@@ -113,7 +116,9 @@ public class SummaryService {
                 log.info("Document {} produced no extractable text; auto-switching to vision mode", documentId);
                 enforceVisionDailyLimit(currentUser);
                 document = validateVisionRange(document, startPage, endPage);
-                contentSum = runVisionSummarization(document, startPage, endPage);
+                OpenAiService.CompletionResult visionResult = runVisionSummarization(document, startPage, endPage);
+                rejectIfTruncated(visionResult);
+                contentSum = visionResult.content();
                 actualMode = MODE_VISION;
             } else {
                 truncated = text.length() > maxInputChars;
@@ -125,15 +130,10 @@ public class SummaryService {
                             documentId, text.length(), maxInputChars);
                 }
 
-                contentSum = openAiService.summarize(textForSummary);
-
-                if (OpenAiService.isIncompleteTextResponse(contentSum)) {
-                    log.info(
-                            "Document {} summarization returned the incomplete-text marker; "
-                                    + "rejecting without saving a summary",
-                            documentId);
-                    throw new IncompleteTextException();
-                }
+                OpenAiService.CompletionResult result = openAiService.summarize(textForSummary);
+                rejectIfTruncated(result);
+                contentSum = result.content();
+                rejectIfIncompleteText(contentSum, documentId);
 
                 actualMode = MODE_TEXT;
             }
@@ -235,7 +235,7 @@ public class SummaryService {
         return label.length() > MAX_LABEL_LENGTH ? label.substring(0, MAX_LABEL_LENGTH) : label;
     }
 
-    private String runVisionSummarization(Document document, Integer startPage, Integer endPage) {
+    private OpenAiService.CompletionResult runVisionSummarization(Document document, Integer startPage, Integer endPage) {
         int renderStart = startPage != null ? startPage : 1;
         int renderEnd = endPage != null ? endPage : document.getPageCount();
 
@@ -243,6 +243,26 @@ public class SummaryService {
                 uploadPathResolver.resolve(document.getFilePath()), renderStart, renderEnd, VISION_RENDER_DPI);
 
         return openAiService.summarizeImages(images);
+    }
+
+    // finish_reason="length" means OpenAI cut the response off mid-generation (hit
+    // max_tokens), not a genuine failure to call the API. Thrown before anything is saved or
+    // counted toward the daily quota, same as the incomplete-text marker below.
+    private void rejectIfTruncated(OpenAiService.CompletionResult result) {
+        if (result.wasTruncatedByLength()) {
+            log.info("OpenAI response was truncated (finish_reason=length); rejecting without saving a summary");
+            throw new SummaryTruncatedException();
+        }
+    }
+
+    private void rejectIfIncompleteText(String contentSum, Integer documentId) {
+        if (OpenAiService.isIncompleteTextResponse(contentSum)) {
+            log.info(
+                    "Document {} summarization returned the incomplete-text marker; "
+                            + "rejecting without saving a summary",
+                    documentId);
+            throw new IncompleteTextException();
+        }
     }
 
     private String resolveMode(SummarizeRequest request) {

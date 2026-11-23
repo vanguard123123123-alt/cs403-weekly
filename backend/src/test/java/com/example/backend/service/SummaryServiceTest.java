@@ -27,6 +27,7 @@ import com.example.backend.exception.InvalidSummaryLabelException;
 import com.example.backend.exception.InvalidSummaryReplaceException;
 import com.example.backend.exception.OpenAiException;
 import com.example.backend.exception.SummaryNotFoundException;
+import com.example.backend.exception.SummaryTruncatedException;
 import com.example.backend.repository.SummaryRepository;
 
 // Pure unit test: every collaborator (repository, OpenAiService, DocumentService, etc.) is a
@@ -180,7 +181,7 @@ class SummaryServiceTest {
     @Test
     void newSummaryGetsWholeFileDefaultLabelWhenNoPageRangeGiven() {
         when(summaryRepository.save(any(Summary.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(openAiService.summarize(any())).thenReturn("summary content");
+        when(openAiService.summarize(any())).thenReturn(new OpenAiService.CompletionResult("summary content", "stop"));
 
         SummaryResponse response = summaryService.summarizeDocument(10, owner, null);
 
@@ -193,11 +194,41 @@ class SummaryServiceTest {
         longTitleDoc.setDocumentId(20);
         when(documentService.getOwnedDocument(20, owner)).thenReturn(longTitleDoc);
         when(summaryRepository.save(any(Summary.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(openAiService.summarize(any())).thenReturn("summary content");
+        when(openAiService.summarize(any())).thenReturn(new OpenAiService.CompletionResult("summary content", "stop"));
 
         SummaryResponse response = summaryService.summarizeDocument(20, owner, null);
 
         assertEquals(100, response.getSummaryLabel().length());
+    }
+
+    // ---- finish_reason="length" (OpenAI's response was cut off mid-generation) ----
+
+    @Test
+    void truncatedTextResponseIsRejectedWithoutSavingOrCountingQuota() {
+        when(openAiService.summarize(any()))
+                .thenReturn(new OpenAiService.CompletionResult("partial content, cut off...", "length"));
+
+        assertThrows(SummaryTruncatedException.class, () -> summaryService.summarizeDocument(10, owner, null));
+
+        verify(summaryRepository, never()).save(any(Summary.class));
+    }
+
+    @Test
+    void truncatedVisionResponseIsRejectedWithoutSavingOrCountingQuota() {
+        Document pdfDocument = new Document(owner, "My PDF Document", "doc.pdf", "pdf", LocalDateTime.now());
+        pdfDocument.setDocumentId(40);
+        pdfDocument.setPageCount(5);
+        when(documentService.getOwnedDocument(40, owner)).thenReturn(pdfDocument);
+        when(documentService.ensurePageCount(pdfDocument)).thenReturn(pdfDocument);
+        when(openAiService.summarizeImages(any()))
+                .thenReturn(new OpenAiService.CompletionResult("partial content, cut off...", "length"));
+
+        SummarizeRequest request = new SummarizeRequest();
+        request.setMode("vision");
+
+        assertThrows(SummaryTruncatedException.class, () -> summaryService.summarizeDocument(40, owner, request));
+
+        verify(summaryRepository, never()).save(any(Summary.class));
     }
 
     // ---- SummarizeRequest.replaceSummaryId ----
@@ -207,7 +238,7 @@ class SummaryServiceTest {
         Summary oldSummary = summaryOf(5, document, "My custom label", null, null);
         when(summaryRepository.findById(5)).thenReturn(Optional.of(oldSummary));
         when(summaryRepository.save(any(Summary.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(openAiService.summarize(any())).thenReturn("new content");
+        when(openAiService.summarize(any())).thenReturn(new OpenAiService.CompletionResult("new content", "stop"));
 
         SummarizeRequest request = new SummarizeRequest();
         request.setReplaceSummaryId(5);
@@ -227,7 +258,7 @@ class SummaryServiceTest {
         when(documentService.ensurePageCount(pdfDocument)).thenReturn(pdfDocument);
         when(textExtractor.supports("pdf")).thenReturn(true);
         when(textExtractor.extractText(any(), eq(5), eq(8))).thenReturn("extracted pdf text");
-        when(openAiService.summarize(any())).thenReturn("new content");
+        when(openAiService.summarize(any())).thenReturn(new OpenAiService.CompletionResult("new content", "stop"));
         when(summaryRepository.save(any(Summary.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // Old summary covered pages 1-3 and was left at exactly its auto-generated default
