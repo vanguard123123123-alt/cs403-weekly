@@ -26,6 +26,17 @@ class OpenAiPromptContentTest {
         assertTrue(prompt.contains("2-3 ตัวอย่าง"), "must instruct picking only 2-3 representative examples");
         assertTrue(prompt.contains("ห้ามตั้งเลขหัวข้อใหม่"), "must forbid inventing new topic numbers");
         assertTrue(prompt.contains("เก็บนิยามและทฤษฎีบทให้ครบ"), "must require keeping all definitions and theorems");
+        assertTrue(prompt.contains("ห้ามเปลี่ยนตัวละคร จำนวน สิ่งของ หรือเงื่อนไข"),
+                "example problem statements must be copied verbatim, not altered");
+        assertTrue(prompt.contains("[ตรวจกับต้นฉบับ]"),
+                "text mode only: unsure spelling fixes must be flagged with this marker");
+        assertTrue(prompt.contains("ห้ามเดาส่วนที่ขาดไปเอง"), "must skip examples that are only partially visible, not guess");
+        assertTrue(prompt.contains("ห้ามย้ายไปไว้ใต้หัวข้ออื่น"), "examples must stay under their original topic heading");
+        assertTrue(prompt.contains("กฎการคูณ (multiplication rule)"),
+                "must require keeping the original English parenthetical for technical terms");
+        assertTrue(prompt.contains("ห้ามสร้างหัวข้อ"), "must forbid inventing topics not present in the document");
+        assertTrue(prompt.contains("ห้ามผสมความหมาย"),
+                "each takeaway item must map to exactly one definition/theorem, not a blend of several");
     }
 
     @Test
@@ -46,5 +57,14 @@ class OpenAiPromptContentTest {
         assertTrue(prompt.contains("2-3 ตัวอย่าง"), "must instruct picking only 2-3 representative examples");
         assertTrue(prompt.contains("ห้ามตั้งเลขหัวข้อใหม่"), "must forbid inventing new topic numbers");
         assertTrue(prompt.contains("เก็บนิยามและทฤษฎีบทให้ครบ"), "must require keeping all definitions and theorems");
+        assertTrue(prompt.contains("ห้ามเปลี่ยนตัวละคร จำนวน สิ่งของ หรือเงื่อนไข"),
+                "example problem statements must be copied verbatim, not altered");
+        assertTrue(prompt.contains("ห้ามเดาส่วนที่ขาดไปเอง"), "must skip examples that are only partially visible, not guess");
+        assertTrue(prompt.contains("ห้ามย้ายไปไว้ใต้หัวข้ออื่น"), "examples must stay under their original topic heading");
+        assertTrue(prompt.contains("กฎการคูณ (multiplication rule)"),
+                "must require keeping the original English parenthetical for technical terms");
+        assertTrue(prompt.contains("ห้ามสร้างหัวข้อ"), "must forbid inventing topics not present in the image");
+        assertTrue(prompt.contains("ห้ามผสมความหมาย"),
+                "each takeaway item must map to exactly one definition/theorem, not a blend of several");
     }
 }
