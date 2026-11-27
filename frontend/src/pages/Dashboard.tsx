@@ -6,7 +6,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import api from "../api/axiosClient";
 import { getErrorMessage, getErrorStatus } from "../api/errorMessage";
-import { coveredPagesForSummaries, uncoveredPageRanges } from "../utils/pageRangeMerger";
+import { uncoveredPageRanges } from "../utils/pageRangeMerger";
 import { formatDateTime, pageRangeLabel, summaryDisplayLabel, uncoveredPagesLabel } from "../utils/roundFormatting";
 import { overviewCacheKey } from "../utils/overviewCacheKey";
 import Layout from "../components/Layout";
@@ -54,36 +54,6 @@ interface SummaryItem {
 
 interface Round extends SummaryItem {
     roundNumber: number;
-}
-
-// A round's own range, or (when it covers the whole file) 1..pageCount so it can
-// still be compared/sorted against partial ranges. null only when the file has no
-// known page count at all (a TXT file), in which case page math doesn't apply.
-function effectivePageRange(round: SummaryItem, pageCount: number | null): { start: number; end: number } | null {
-    if (round.startPage != null && round.endPage != null) {
-        return { start: round.startPage, end: round.endPage };
-    }
-    return pageCount != null ? { start: 1, end: pageCount } : null;
-}
-
-// Shared by the "รวมต่อเนื่อง" view and the "คัดลอกสรุปที่เลือก" button so both
-// always agree on the same order: by start page ascending (a whole-file round
-// counts as starting at page 1), ties broken by when it was created.
-function sortRoundsForCombinedView(rounds: Round[]): Round[] {
-    return [...rounds].sort((a, b) => {
-        const startA = a.startPage ?? 1;
-        const startB = b.startPage ?? 1;
-        if (startA !== startB) {
-            return startA - startB;
-        }
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    });
-}
-
-function buildCombinedMarkdown(rounds: Round[], documentTitle: string): string {
-    return sortRoundsForCombinedView(rounds)
-        .map((round) => `## ${summaryDisplayLabel(round, documentTitle)}\n\n${round.contentSum}`)
-        .join("\n\n---\n\n");
 }
 
 // navigator.clipboard requires a secure context; this covers http/older browsers.
@@ -162,10 +132,6 @@ function Dashboard() {
     const [roundsError, setRoundsError] = useState<string | null>(null);
 
     const [selectedRoundIds, setSelectedRoundIds] = useState<Set<number>>(new Set());
-    const [expandedRoundIds, setExpandedRoundIds] = useState<Set<number>>(new Set());
-    const [overviewViewMode, setOverviewViewMode] = useState<"separate" | "combined">("separate");
-    const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
-    const copyStatusTimeoutRef = useRef<number | null>(null);
 
     // AI overview ("ภาพรวมโดย AI"): cache lives in a ref (not state) so writing to it
     // never itself triggers a render; aiOverviewCacheVersion is bumped after every
@@ -184,9 +150,6 @@ function Dashboard() {
 
     useEffect(() => {
         return () => {
-            if (copyStatusTimeoutRef.current != null) {
-                window.clearTimeout(copyStatusTimeoutRef.current);
-            }
             if (aiOverviewCopyTimeoutRef.current != null) {
                 window.clearTimeout(aiOverviewCopyTimeoutRef.current);
             }
@@ -235,7 +198,6 @@ function Dashboard() {
         setLoadingRounds(true);
         setRoundsError(null);
         setSelectedRoundIds(new Set());
-        setExpandedRoundIds(new Set());
 
         try {
             const response = await api.get<SummaryItem[]>(`/api/documents/${documentId}/summaries`);
@@ -274,50 +236,10 @@ function Dashboard() {
         });
     };
 
-    const toggleRoundExpanded = (summaryId: number) => {
-        setExpandedRoundIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(summaryId)) {
-                next.delete(summaryId);
-            } else {
-                next.add(summaryId);
-            }
-            return next;
-        });
-    };
-
     const handleSelectAll = () => setSelectedRoundIds(new Set(rounds.map((r) => r.summaryId)));
     const handleSelectLastThree = () =>
         setSelectedRoundIds(new Set(rounds.slice(-3).map((r) => r.summaryId)));
     const handleClearSelection = () => setSelectedRoundIds(new Set());
-
-    const handleCopySelected = async (documentTitle: string, roundsToCopy: Round[]) => {
-        if (roundsToCopy.length === 0) {
-            return;
-        }
-        const markdown = buildCombinedMarkdown(roundsToCopy, documentTitle);
-
-        let succeeded = true;
-        try {
-            if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(markdown);
-            } else {
-                copyWithFallbackTextarea(markdown);
-            }
-        } catch {
-            try {
-                copyWithFallbackTextarea(markdown);
-            } catch {
-                succeeded = false;
-            }
-        }
-
-        setCopyStatus(succeeded ? "copied" : "error");
-        if (copyStatusTimeoutRef.current != null) {
-            window.clearTimeout(copyStatusTimeoutRef.current);
-        }
-        copyStatusTimeoutRef.current = window.setTimeout(() => setCopyStatus("idle"), 2000);
-    };
 
     // Shared by the first "สร้างภาพรวม" and the later "สร้างใหม่": both just ask the
     // AI to write an overview for whatever is ticked right now and cache it under
@@ -394,14 +316,6 @@ function Dashboard() {
     const selectedDocument = dashboard.documents.find((doc) => doc.documentId === selectedDocumentId) ?? null;
     const selectedRounds = rounds.filter((round) => selectedRoundIds.has(round.summaryId));
 
-    const selectedOverviewCoveredPages =
-        selectedDocument && selectedRounds.length > 0
-            ? coveredPagesForSummaries(
-                  selectedRounds.map((round) => ({ startPage: round.startPage, endPage: round.endPage })),
-                  selectedDocument.pageCount
-              )
-            : null;
-
     const documentProgressPercent =
         selectedDocument?.coveredPages != null && selectedDocument.pageCount != null && selectedDocument.pageCount > 0
             ? Math.min(100, Math.round((selectedDocument.coveredPages / selectedDocument.pageCount) * 100))
@@ -423,23 +337,12 @@ function Dashboard() {
           )
         : null;
 
-    const sortedSelectedRounds = sortRoundsForCombinedView(selectedRounds);
-
     // Re-read on every render (including the version bump after a cache write) so
     // ticking back to an already-generated set shows its result immediately, with
     // no API call. aiOverviewCacheVersion itself is only a render trigger here.
     void aiOverviewCacheVersion;
     const currentOverviewKey = overviewCacheKey(selectedRounds.map((round) => round.summaryId));
     const cachedOverview = aiOverviewCacheRef.current.get(currentOverviewKey) ?? null;
-    const combinedEffectiveRanges = selectedDocument
-        ? selectedRounds
-              .map((round) => effectivePageRange(round, selectedDocument.pageCount))
-              .filter((range): range is { start: number; end: number } => range != null)
-        : [];
-    const combinedMinStart =
-        combinedEffectiveRanges.length > 0 ? Math.min(...combinedEffectiveRanges.map((r) => r.start)) : null;
-    const combinedMaxEnd =
-        combinedEffectiveRanges.length > 0 ? Math.max(...combinedEffectiveRanges.map((r) => r.end)) : null;
 
     return (
         <Layout>
@@ -622,155 +525,6 @@ function Dashboard() {
                             </Card>
 
                             {selectedRounds.length > 0 && (
-                                <>
-                                <Card className="flex flex-col gap-4">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <h2 className="text-base font-semibold text-ink">ภาพรวมที่เลือก</h2>
-                                        <div className="flex flex-wrap gap-2">
-                                            <div className="flex overflow-hidden rounded-lg border border-border text-sm">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setOverviewViewMode("separate")}
-                                                    aria-pressed={overviewViewMode === "separate"}
-                                                    className={`px-3 py-1.5 font-medium transition-colors ${
-                                                        overviewViewMode === "separate"
-                                                            ? "bg-primary-50 text-primary-700"
-                                                            : "bg-surface text-ink-muted hover:bg-background"
-                                                    }`}
-                                                >
-                                                    แยกรายสรุป
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setOverviewViewMode("combined")}
-                                                    aria-pressed={overviewViewMode === "combined"}
-                                                    className={`border-l border-border px-3 py-1.5 font-medium transition-colors ${
-                                                        overviewViewMode === "combined"
-                                                            ? "bg-primary-50 text-primary-700"
-                                                            : "bg-surface text-ink-muted hover:bg-background"
-                                                    }`}
-                                                >
-                                                    รวมต่อเนื่อง
-                                                </button>
-                                            </div>
-                                            <Button
-                                                variant="secondary"
-                                                disabled={selectedRounds.length === 0}
-                                                onClick={() =>
-                                                    handleCopySelected(selectedDocument.title, sortedSelectedRounds)
-                                                }
-                                            >
-                                                {copyStatus === "copied" ? "คัดลอกแล้ว" : "คัดลอกสรุปที่เลือก"}
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {copyStatus === "error" && (
-                                        <Alert variant="error">คัดลอกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</Alert>
-                                    )}
-
-                                    <div className="flex flex-wrap gap-4 text-sm text-ink-muted">
-                                        <span>จำนวนสรุปที่เลือก: {selectedRounds.length}</span>
-                                        {selectedOverviewCoveredPages != null && (
-                                            <span>หน้ารวม (ไม่ซ้ำ): {selectedOverviewCoveredPages} หน้า</span>
-                                        )}
-                                        <span>
-                                            ช่วงวันที่ {formatDateTime(selectedRounds[0].createdAt)} —{" "}
-                                            {formatDateTime(selectedRounds[selectedRounds.length - 1].createdAt)}
-                                        </span>
-                                    </div>
-
-                                    {overviewViewMode === "separate" ? (
-                                        <div className="flex flex-col gap-3">
-                                            {selectedRounds.map((round) => {
-                                                const expanded = expandedRoundIds.has(round.summaryId);
-                                                return (
-                                                    <div
-                                                        key={round.summaryId}
-                                                        className="rounded-xl border border-border"
-                                                    >
-                                                        <div className="flex flex-wrap items-center justify-between gap-2 p-3">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleRoundExpanded(round.summaryId)}
-                                                                className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-left text-sm font-medium text-ink"
-                                                            >
-                                                                <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-                                                                <span
-                                                                    className="min-w-0 max-w-full truncate"
-                                                                    title={summaryDisplayLabel(round, selectedDocument.title)}
-                                                                >
-                                                                    {summaryDisplayLabel(round, selectedDocument.title)}
-                                                                </span>
-                                                                <span className="text-ink-muted">·</span>
-                                                                <span className="text-ink-muted">{pageRangeLabel(round)}</span>
-                                                                <span className="text-ink-muted">·</span>
-                                                                <span className="text-ink-muted">
-                                                                    {formatDateTime(round.createdAt)}
-                                                                </span>
-                                                                {round.mode === "vision" && (
-                                                                    <Badge variant="warning">อ่านแบบภาพ</Badge>
-                                                                )}
-                                                            </button>
-                                                            <Button
-                                                                variant="secondary"
-                                                                onClick={() => navigate(`/documents/${round.documentId}`)}
-                                                            >
-                                                                เปิดหน้าเอกสาร
-                                                            </Button>
-                                                        </div>
-                                                        {expanded && (
-                                                            <div className="markdown-summary border-t border-border p-3">
-                                                                <ReactMarkdown
-                                                                    remarkPlugins={[remarkMath]}
-                                                                    rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
-                                                                >
-                                                                    {round.contentSum}
-                                                                </ReactMarkdown>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col gap-3">
-                                            <p className="text-sm font-medium text-ink">
-                                                {selectedDocument.pageCount != null &&
-                                                combinedMinStart != null &&
-                                                combinedMaxEnd != null
-                                                    ? `ครอบคลุมหน้า ${combinedMinStart}-${combinedMaxEnd} (${
-                                                          selectedOverviewCoveredPages ?? 0
-                                                      } หน้า) · ${selectedRounds.length} สรุป`
-                                                    : `${selectedRounds.length} สรุป`}
-                                            </p>
-                                            <div className="mx-auto flex w-full max-w-[700px] min-w-0 flex-col rounded-xl border border-border p-4">
-                                                {sortedSelectedRounds.map((round, index) => (
-                                                    <div
-                                                        key={round.summaryId}
-                                                        className={index > 0 ? "mt-4 border-t border-border pt-4" : ""}
-                                                    >
-                                                        <h3
-                                                            className="mb-2 min-w-0 truncate text-sm font-semibold text-ink"
-                                                            title={summaryDisplayLabel(round, selectedDocument.title)}
-                                                        >
-                                                            {summaryDisplayLabel(round, selectedDocument.title)}
-                                                        </h3>
-                                                        <div className="markdown-summary">
-                                                            <ReactMarkdown
-                                                                remarkPlugins={[remarkMath]}
-                                                                rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
-                                                            >
-                                                                {round.contentSum}
-                                                            </ReactMarkdown>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </Card>
-
                                 <Card className="flex flex-col gap-4">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <h2 className="text-base font-semibold text-ink">ภาพรวมโดย AI</h2>
@@ -879,7 +633,6 @@ function Dashboard() {
                                         </div>
                                     )}
                                 </Card>
-                                </>
                             )}
                         </>
                     )}
