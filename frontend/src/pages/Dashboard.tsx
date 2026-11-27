@@ -92,13 +92,12 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
 
 interface OverviewResult {
     overviewMarkdown: string;
-    practiceTopics: string[];
 }
 
-// The AI's overviewMarkdown/practiceTopics already have URLs stripped server-side,
-// but this is a second, defensive layer: links are never rendered as clickable here
-// regardless of what the model returns, so AI-controlled content can never produce
-// an actual <a href> in the page.
+// The AI's overviewMarkdown already has URLs stripped server-side, but this is a
+// second, defensive layer: links are never rendered as clickable here regardless of
+// what the model returns, so AI-controlled content can never produce an actual
+// <a href> in the page.
 function PlainTextLink({ children }: { children?: ReactNode }) {
     return <>{children}</>;
 }
@@ -600,36 +599,6 @@ function Dashboard() {
                                                     {cachedOverview.overviewMarkdown}
                                                 </ReactMarkdown>
                                             </div>
-
-                                            {cachedOverview.practiceTopics.length > 0 && (
-                                                <div className="mx-auto flex w-full max-w-[700px] min-w-0 flex-col gap-2">
-                                                    <h3 className="text-sm font-semibold text-ink">
-                                                        หัวข้อที่ควรฝึกเพิ่ม
-                                                    </h3>
-                                                    <ul className="flex flex-col gap-1.5 text-sm">
-                                                        {cachedOverview.practiceTopics.map((topic, index) => (
-                                                            <li
-                                                                key={index}
-                                                                className="flex flex-wrap items-center gap-x-2 gap-y-1"
-                                                            >
-                                                                <span className="min-w-0 break-words text-ink">
-                                                                    {topic}
-                                                                </span>
-                                                                <a
-                                                                    href={`https://www.google.com/search?q=${encodeURIComponent(
-                                                                        `${selectedDocument.title} ${topic} แบบฝึกหัด`
-                                                                    )}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="shrink-0 text-primary-700 underline"
-                                                                >
-                                                                    ค้นหาแบบฝึกหัด
-                                                                </a>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
                                         </div>
                                     )}
                                 </Card>

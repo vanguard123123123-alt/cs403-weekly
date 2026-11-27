@@ -112,7 +112,7 @@ public class OpenAiService {
 
     // Used for the /overview feature: forces the model to reply with a single JSON
     // object (via response_format) instead of free-form Markdown, so the caller can
-    // parse {overviewMarkdown, practiceTopics} out of the returned content string.
+    // parse {overviewMarkdown} out of the returned content string.
     public String generateOverview(String systemPrompt, String userPrompt) {
         OverviewChatCompletionRequest request = new OverviewChatCompletionRequest(
                 model,

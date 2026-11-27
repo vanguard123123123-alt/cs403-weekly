@@ -1,6 +1,5 @@
 package com.example.backend.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,13 +75,8 @@ class OverviewServiceTest {
         return summary;
     }
 
-    private static String validAiJson(String overviewMarkdown, List<String> topics) {
-        String topicsJson = topics.stream()
-                .map(t -> "\"" + t.replace("\"", "\\\"") + "\"")
-                .reduce((a, b) -> a + "," + b)
-                .orElse("");
-        return "{\"overviewMarkdown\":\"" + overviewMarkdown.replace("\"", "\\\"").replace("\n", "\\n")
-                + "\",\"practiceTopics\":[" + topicsJson + "]}";
+    private static String validAiJson(String overviewMarkdown) {
+        return "{\"overviewMarkdown\":\"" + overviewMarkdown.replace("\"", "\\\"").replace("\n", "\\n") + "\"}";
     }
 
     @Test
@@ -92,7 +86,7 @@ class OverviewServiceTest {
         when(summaryService.getOwnedSummary(1, owner)).thenReturn(s1);
         when(summaryService.getOwnedSummary(2, owner)).thenReturn(s2);
         when(openAiService.generateOverview(any(), any()))
-                .thenReturn(validAiJson("## ภาพรวมที่เรียนมา\nเนื้อหา", List.of("หัวข้อ A", "หัวข้อ B", "หัวข้อ C")));
+                .thenReturn(validAiJson("## ภาพรวมที่เรียนมา\nเนื้อหา"));
 
         OverviewRequest request = new OverviewRequest();
         request.setSummaryIds(List.of(1, 2));
@@ -100,8 +94,27 @@ class OverviewServiceTest {
         OverviewResponse response = overviewService.generateOverview(10, owner, request);
 
         assertTrue(response.getOverviewMarkdown().contains("ภาพรวมที่เรียนมา"));
-        assertEquals(List.of("หัวข้อ A", "หัวข้อ B", "หัวข้อ C"), response.getPracticeTopics());
         verify(usageLogService).recordUsage(1, "overview");
+    }
+
+    // Guards the "frontend must not break on an old cached shape" requirement from the
+    // backend side: ignoreUnknown means a stale AI response that still includes the old
+    // practiceTopics field (e.g. a model that hasn't picked up the new schema yet) must
+    // still parse instead of throwing OverviewGenerationException.
+    @Test
+    void aiResponseWithLeftoverPracticeTopicsFieldStillParses() {
+        Summary s1 = summaryOf(1, document, "Chapter 1", "content");
+        when(summaryService.getOwnedSummary(1, owner)).thenReturn(s1);
+        when(openAiService.generateOverview(any(), any()))
+                .thenReturn("{\"overviewMarkdown\":\"## ภาพรวมที่เรียนมา\\nเนื้อหา\","
+                        + "\"practiceTopics\":[\"หัวข้อ A\"]}");
+
+        OverviewRequest request = new OverviewRequest();
+        request.setSummaryIds(List.of(1));
+
+        OverviewResponse response = overviewService.generateOverview(10, owner, request);
+
+        assertTrue(response.getOverviewMarkdown().contains("ภาพรวมที่เรียนมา"));
     }
 
     @Test
@@ -218,13 +231,12 @@ class OverviewServiceTest {
     }
 
     @Test
-    void urlsAndMarkdownLinksAreStrippedFromBothFields() {
+    void urlsAndMarkdownLinksAreStrippedFromOverviewMarkdown() {
         Summary s1 = summaryOf(1, document, "Chapter 1", "content");
         when(summaryService.getOwnedSummary(1, owner)).thenReturn(s1);
         String overviewWithLinks = "## ภาพรวมที่เรียนมา\nดูเพิ่มเติมที่ [เว็บไซต์](https://example.com/page) "
                 + "หรือ https://example.com/raw และ www.example.org";
-        when(openAiService.generateOverview(any(), any()))
-                .thenReturn(validAiJson(overviewWithLinks, List.of("ทบทวน https://example.com/topic")));
+        when(openAiService.generateOverview(any(), any())).thenReturn(validAiJson(overviewWithLinks));
 
         OverviewRequest request = new OverviewRequest();
         request.setSummaryIds(List.of(1));
@@ -234,26 +246,6 @@ class OverviewServiceTest {
         assertTrue(response.getOverviewMarkdown().contains("เว็บไซต์"));
         assertTrue(!response.getOverviewMarkdown().contains("http"));
         assertTrue(!response.getOverviewMarkdown().contains("www."));
-        assertEquals(1, response.getPracticeTopics().size());
-        assertTrue(!response.getPracticeTopics().get(0).contains("http"));
-    }
-
-    @Test
-    void practiceTopicsAreCappedToFiveItemsAndEightyCharactersEach() {
-        Summary s1 = summaryOf(1, document, "Chapter 1", "content");
-        when(summaryService.getOwnedSummary(1, owner)).thenReturn(s1);
-        String tooLongTopic = "x".repeat(120);
-        when(openAiService.generateOverview(any(), any())).thenReturn(
-                validAiJson("## ภาพรวมที่เรียนมา\nเนื้อหา",
-                        List.of(tooLongTopic, "b", "c", "d", "e", "f", "g")));
-
-        OverviewRequest request = new OverviewRequest();
-        request.setSummaryIds(List.of(1));
-
-        OverviewResponse response = overviewService.generateOverview(10, owner, request);
-
-        assertEquals(5, response.getPracticeTopics().size());
-        assertEquals(80, response.getPracticeTopics().get(0).length());
     }
 
     @Test
