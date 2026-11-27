@@ -108,9 +108,9 @@ function Landing() {
                                         </div>
                                     ) : (
                                         <img
-                                            src="/images/hero.png"
-                                            alt={`ตัวอย่างหน้าจอ ${APP_NAME}`}
-                                            className="h-full w-full object-cover"
+                                            src="/landing-preview.png"
+                                            alt="ภาพหน้าจอตัวอย่างการใช้งานระบบ แสดงหน้าเอกสาร PDF ต้นฉบับด้านซ้ายคู่กับสรุปเนื้อหาที่สร้างโดย AI ด้านขวา แบ่งเป็นหัวข้อ นิยาม และตัวอย่างประกอบ"
+                                            className="h-full w-full object-contain"
                                             onError={() => setImageError(true)}
                                         />
                                     )}
