@@ -654,7 +654,7 @@ function DocumentDetail() {
 
                                         {!showReplaceForm ? (
                                             <Button variant="secondary" onClick={() => setShowReplaceForm(true)}>
-                                                สรุปใหม่ช่วงนี้
+                                                สรุปใหม่
                                             </Button>
                                         ) : (
                                             <SummarizeForm
